@@ -1,0 +1,17 @@
+# Environment / secrets
+.env
+*.env
+.env.*
+.claude/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+dist/
+build/
+*.egg-info/
+
+# Mac
+.DS_Store
