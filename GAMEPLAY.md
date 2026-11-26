@@ -124,8 +124,8 @@ CoC has a decade of content. We build a slice, then add systems in order. **v1 i
 
 | Phase | Systems |
 |---|---|
-| **v1** | Town Hall, gold + elixir, ~10 building types, 3 troops, battles vs computer bases, **Knowledge skips**, **daily study bonus**, backlog siege |
-| **v2** | Accounts + server, PvP raids, stars, trophies, shields, walls, gems |
+| **v1** | Town Hall, gold + elixir, ~10 building types, 3 troops, battles vs computer bases, **Knowledge skips**, **daily study bonus**, backlog siege, **accounts + gems store** |
+| **v2** | PvP raids, stars, trophies, shields, walls |
 | **v2.5** | Clans: donations, clan wars with study stars, clan study challenges |
 | **v3** | Dark elixir, heroes, ores + equipment, magic items, monthly pass |
 | **v4** | Clan War Leagues, Clan Capital, events, top league |

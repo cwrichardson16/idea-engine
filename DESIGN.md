@@ -60,7 +60,7 @@ A determined person can still cheat a local app. Keep real-world stakes low (no 
 | Battles | **Deterministic simulation**, so the server can re-run a raid and confirm the result | Stops faked raid results |
 | Offline | Queue review events locally and sync when online | Anki is often used offline |
 | Login | Email code typed into the add-on | No browser redirect dance inside Anki |
-| Payments | Web checkout (e.g. Stripe), with gems granted server-side | Add-ons can't use app stores |
+| Payments | Merchant of record (Paddle or Lemon Squeezy) web checkout, with gems granted server-side | Handles sales tax/VAT; add-ons can't use app stores |
 
 Anki is AGPL-licensed, so the add-on will most likely be open source. The server stays private, and it holds everything that matters (economy, purchases).
 
@@ -97,4 +97,5 @@ All art is original. No look-alikes of existing games.
 | 8 | Build order: see GAMEPLAY.md §10 | Proposed |
 | 9 | Tech stack (section 4) | Proposed |
 | 10 | Name | **Open** |
-| 11 | Art sourcing | **Open** |
+| 11 | Art sourcing | Prototype with one free pack; one consistent (likely commissioned) style before launch. See OPEN_SOURCE.md |
+| 12 | Gems + payments from day one (server + accounts in v1; merchant-of-record checkout) | Decided |

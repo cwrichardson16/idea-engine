@@ -17,14 +17,23 @@ so we build our own, using the libraries below.
 | [isoisoiso](https://github.com/briwa/isoisoiso) | Small TypeScript + Phaser isometric demo with pathfinding | MIT |
 | Pathfinding libraries (pathfinding.js, EasyStar.js) | Troops finding their way around buildings and walls | MIT |
 
-## Art (for the prototype and maybe beyond)
+## Art: the look
 
-| Pack | Notes | License |
-|---|---|---|
-| [Kenney: Medieval RTS](https://kenney.nl/assets/medieval-rts) | 2D top-down, ~120 assets: buildings, units, tiles. **Best fit for the v1 prototype.** | CC0 (free, no credit needed) |
-| [Kenney: Retro Medieval Kit](https://kenney.nl/assets/retro-medieval-kit) | 3D, ~100 assets; could be rendered at an angle for an isometric look | CC0 |
-| [Kenney: Castle Kit](https://kenney-assets.itch.io/castle-kit) | 3D castle pieces | Check page |
-| [OpenGameArt: isometric medieval buildings](https://opengameart.org/content/isometric-medieval-buildings) | Isometric buildings | Check page |
+The genre's look is bright, chunky, cartoony and readable at small sizes, usually at an angle (isometric).
+Free art in that exact style is rare. Most free packs are pixel art or simple shapes. Mixing packs from different artists looks cheap,
+so **pick one pack for the prototype, and plan on one consistent style (likely commissioned) before public launch.**
+
+| Option | Look | Cost / license | Fit |
+|---|---|---|---|
+| **Tiny Swords** by Pixel Frog ([itch.io](https://pixelfrog-assets.itch.io/tiny-swords)) | Charming medieval pixel art, top-down: castles, towers, houses, knights, archers, goblins | Name-your-price. *License believed to allow commercial use, not resale; **not yet verified**.* | **Best free prototype look** |
+| **Kenney: Medieval RTS** ([kenney.nl](https://kenney.nl/assets/medieval-rts)) | Clean, simple, top-down | Free, CC0 (no credit needed) | Safe fallback; plainer |
+| **Kenney 3D kits** (Castle Kit, Retro Medieval Kit, Fantasy Town Kit) rendered to 2D at an angle | Consistent isometric look, any angle we want | Free, CC0 | Cheap route to the isometric look; needs a Blender render step |
+| Paid isometric kits (e.g. [Isometric Tower Game Kit](https://mobilegamegraphics.itch.io/isometric-tower-game-kit), ~$10; similar packs on CraftPix) | Cartoon isometric, closest to the genre | Paid; check each license | Good look, but packs rarely match each other |
+| [OpenGameArt: Isometric Enemy Base](https://opengameart.org/content/isometric-enemy-base) | Isometric pixel art, 117 assets | Page says commercial use allowed | Small; pixel style |
+| **Commissioned artist** | Our own distinctive style | Usually a few thousand dollars and up for a core set | **Before public launch** |
+| AI-generated | Anything | Cheap | Hard to keep consistent; some players dislike it |
+
+**Avoid:** packs licensed "NoDerivatives" (e.g. BuzPin Studio's isometric packs). We can't edit or recolor them.
 
 ## Anki add-ons to learn from
 
