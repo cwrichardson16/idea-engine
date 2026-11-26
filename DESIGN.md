@@ -1,134 +1,105 @@
 # Design framework
 
-Working doc. Each section ends with what's **decided**, what's a **proposed default** (we go with it unless someone objects),
-and what's still **open**.
+Product, tech and roadmap. **Game mechanics live in [GAMEPLAY.md](GAMEPLAY.md).**
+
+Each section notes what's **decided**, what's a **proposed default** (we go with it unless someone objects), and what's still **open**.
 
 ---
 
 ## 1. Product shape
 
 - **v1 is an Anki add-on.** The game lives inside desktop Anki and reacts to reviews as they happen.
-- **Multiplayer from the start:** accounts and a server exist from early on, so clans aren't bolted on later.
-- **Later:** a phone/web companion app reusing the same game code (check your base, collect, clan stuff).
+- **Multiplayer from the start:** accounts and a server exist early, so raids and clans aren't bolted on later.
+- **Later:** a phone app reusing the same game code. That's also where app-store purchases come in.
 
-Decided: add-on first, clans and multiplayer are in scope.
+Decided.
 
 ---
 
 ## 2. Core loop
 
+Modeled on how base-builders work, with studying replacing waiting. Details are in GAMEPLAY.md.
+
 ```
-study in Anki ──► earn study currency ──► speed up builds / train defenders
-      ▲                                              │
-      │                                              ▼
- backlog grows ◄── skip days        base grows ──► join clan efforts / wars
-      │
-      ▼
-   SIEGE (overdue cards attack your base)
+study in Anki ──► Brainpower ──► train staff ──► raid other hospitals / clan wars
+                                                     │
+passive Funding ──► build & upgrade hospital ◄───────┘ (stolen Funding)
+      ▲
+gems (paid) speed it up
+
+overdue cards ──► Outbreak (disease horde attacks your hospital)
 ```
 
-- **Passive currency** trickles in over time. It builds basic stuff, so you *can* progress without studying, just slowly.
-- **Study currency** comes only from reviews. It speeds things up, unlocks top-tier upgrades and trains defenders.
-- **The siege:** overdue reviews become an attacking force. Clearing them fights it off.
-  Not studying is self-correcting inside the game; no extra punishment needed.
+Decided:
+- Hospital setting with med-school humor.
+- **Money buys time and looks; studying buys power.** Gems are for sale. Brainpower, staff, heroes and war stars never are.
 
-Proposed defaults:
-- Two currencies, one passive and one from studying. More currencies can come later if the economy needs them.
-- **Soft sieges:** a siege can steal resources and slow production, but it never destroys buildings or wipes progress.
-  Med students already have guilt spirals; the game must not add to them.
-- **Comeback bonus:** clearing a big backlog pays extra. Recovering should feel great.
-- **Vacation shield:** pause sieges for a set number of days (exam week, holidays, being sick).
+Proposed:
+- **Soft outbreaks:** they never destroy buildings or progress. Plus a comeback bonus and a vacation shield.
 
 ---
 
 ## 3. Study → reward rules (anti-cheese)
 
-- Reward **reviews of due cards**, so the scheduler caps daily earnings.
+- Reward reviews of **due** cards, so the scheduler caps daily earnings.
 - **No accuracy rewards** (grading is self-reported, so rewarding "Good" teaches lying).
-- **Ignore button-mashing:** reviews answered too fast (e.g. under ~1.5s) earn nothing.
-- **Cap the reward from new cards**, so nobody adds junk cards to farm.
+- Reviews answered too fast (e.g. under ~1.5s) earn nothing.
+- Rewards from new cards are capped.
 - Rewards come from Anki's own review log, which is harder to fake than taps in our UI.
 
-Accept that a determined person can cheat a local app. Keep the stakes low enough (no cash prizes) that it doesn't matter.
+A determined person can still cheat a local app. Keep real-world stakes low (no cash prizes).
 
 ---
 
-## 4. Multiplayer
-
-| Feature | What it is | Proposed phase |
-|---|---|---|
-| **Clans** | Groups of ~5–30 (a class, a study group) | Phase 2 |
-| **Clan project** | Co-op: members' reviews fuel a shared clan building | Phase 2 |
-| **Clan wars** | Weekly clan vs clan, scored on **% of due reviews cleared** | Phase 2 |
-| **PvP raids** | Attack another player's base asynchronously, with study-trained troops | Phase 3 |
-| **Clan chat** | Skip at first: classes already have GroupMe/Discord, and chat needs moderation | Later / maybe never |
-
-**Fairness:** score clans on *completion %*, not raw review count. An M1 with 200 due cards and an M3 with 900 can then compete fairly.
-
-Proposed: co-op and clan wars before PvP. Cooperation fits a cohort that studies together; raids are the hardest part to balance.
-
----
-
-## 5. Tech architecture (proposed defaults)
+## 4. Tech architecture (proposed defaults)
 
 | Piece | Choice | Why |
 |---|---|---|
 | Add-on | Python, Anki add-on API (`gui_hooks.reviewer_did_answer_card`, review log) | Standard way to hook Anki |
-| Game UI | TypeScript + **Phaser** (2D game framework), rendered in Anki's built-in web view | Web tech, reusable for the phone/web app later |
-| Server | **Supabase** (Postgres, auth, realtime, edge functions) | Cheap, fast to build on, has realtime for clans |
-| Game state | **Server-authoritative** for anything multiplayer touches | Stops people editing local save files to win clan wars |
+| Game UI | TypeScript + **Phaser** (2D game framework) in Anki's built-in web view | Web tech, reusable in the phone app |
+| Server | **Supabase** (Postgres, auth, realtime, edge functions) | Cheap, fast to build on, realtime for clans |
+| Game state | **Server-authoritative** (resources, timers, purchases) | Stops save-file editing |
+| Battles | **Deterministic simulation**, so the server can re-run a raid and confirm the result | Stops faked raid results |
 | Offline | Queue review events locally and sync when online | Anki is often used offline |
 | Login | Email code typed into the add-on | No browser redirect dance inside Anki |
+| Payments | Web checkout (e.g. Stripe), with gems granted server-side | Add-ons can't use app stores |
 
-Anki is AGPL-licensed, so the add-on will most likely be open source. The server can stay private.
-
----
-
-## 6. Theme & art
-
-Open. Options:
-
-- **A. Immune system:** your base is a body, and the backlog is an infection.
-  Very on-brand for med students and makes the siege intuitive. Narrower when expanding beyond med.
-- **B. Fantasy/kingdom:** familiar and general. Easy to expand to other audiences, but less distinctive.
-- **C. Hospital tycoon:** build a hospital, and the backlog is a patient surge. Tycoon-flavoured; the siege metaphor is weaker.
-
-Art sourcing, also open: simple shapes for the prototype, then asset packs, AI-generated art or a commissioned artist.
-All art must be original. No look-alikes of existing games.
+Anki is AGPL-licensed, so the add-on will most likely be open source. The server stays private, and it holds everything that matters (economy, purchases).
 
 ---
 
-## 7. Money
+## 5. Art
 
-Open, not urgent. One principle proposed now: **never sell what studying earns.**
-If gems can be bought, studying stops mattering. Possible later options: cosmetics, clan perks, donations/Patreon (common for Anki add-ons).
+Open. Simple shapes for the prototype. Then asset packs, AI-generated art or a commissioned artist.
+All art is original. No look-alikes of existing games.
 
 ---
 
-## 8. Roadmap
+## 6. Roadmap
 
 | Phase | Goal | Contents |
 |---|---|---|
-| **0. Prototype** | Does it feel good? | Add-on hooks reviews, earns currency, one building on a timer, local only |
-| **1. Single-player** | A real game loop | Accounts + server, several buildings, both currencies, siege, vacation shield |
-| **2. Clans** | Social hook | Clans, clan project, weekly clan wars |
-| **3. PvP** | Competition | Async raids |
-| **4. Companion app** | Play away from desktop | Phone/web app reusing the game code |
+| **0. Prototype** | Does the loop feel good? | Add-on hooks reviews, earns Brainpower, one building on a timer, local only |
+| **1. Single-player** | A real game | Accounts + server, hospital and buildings, Funding/Brainpower/gems, Outbreak (builds the battle engine), gem purchases |
+| **2. Raids** | Competition | Train staff, async PvP raids, rank ladder, shields |
+| **3. Clans** | Social hook | Consults, clan wars with study stars, clan project, White Coat Pass |
+| **4. Phone app** | Play away from desktop | Same game code, app-store purchases |
 
 ---
 
-## 9. Decision log
+## 7. Decision log
 
 | # | Decision | Status |
 |---|---|---|
 | 1 | First audience: med students | Decided |
 | 2 | v1 as an Anki add-on | Decided |
 | 3 | Clans and multiplayer in scope | Decided |
-| 4 | Theme | **Open** |
-| 5 | Multiplayer order: co-op/clan wars before PvP | Proposed |
-| 6 | Soft sieges (never destroy progress) | Proposed |
-| 7 | Progress possible without studying, just slow | Proposed |
-| 8 | Tech stack (section 5) | Proposed |
-| 9 | Art sourcing | **Open** |
-| 10 | Monetization ("never sell study currency") | Proposed |
-| 11 | Name | **Open** |
+| 4 | Modeled on base-builder genre mechanics, with original characters/art/name | Decided |
+| 5 | Setting: hospital, med-school humor | Decided |
+| 6 | Gems for sale; Brainpower, staff, heroes and war stars never sold | Decided |
+| 7 | Soft outbreaks (never destroy progress) | Proposed |
+| 8 | Build order: Outbreak → raids → clans | Proposed |
+| 9 | Tech stack (section 4) | Proposed |
+| 10 | Name | **Open** |
+| 11 | Art sourcing | **Open** |
+| 12 | Raid shield for clearing your queue? | **Open** |

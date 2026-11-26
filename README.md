@@ -1,7 +1,7 @@
-# Study Clash (working title)
+# Untitled study base-builder (name TBD)
 
-A spaced-repetition study app fused with a base-building tycoon game.
-**The pitch: a base-builder where the gems are flashcards.**
+A hospital base-builder strategy game for med students, played inside Anki.
+**The pitch: a base-builder where studying is the power source.** Your reviews train your army; your overdue cards attack your hospital.
 
 > Status: early concept. Nothing is built yet. v1 will be an Anki add-on, with clans and multiplayer planned.
 
@@ -43,4 +43,5 @@ That turns the most painful part of Anki (the backlog) into the game's core tens
 
 ## Design
 
-The full framework, roadmap and decision log live in [DESIGN.md](DESIGN.md).
+- [GAMEPLAY.md](GAMEPLAY.md): game mechanics (resources, buildings, staff, Outbreak, raids, clans, money).
+- [DESIGN.md](DESIGN.md): product, tech, roadmap and decision log.
