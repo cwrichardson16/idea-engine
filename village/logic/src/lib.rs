@@ -511,21 +511,23 @@ fn spawn_building(w: &mut World, kind: Kind, x: i32, z: i32, level: u8, busy: bo
         Some(false) => "#ff6b6b".to_string(),
         None => hex.to_string(),
     };
+    // A blocked ghost floats above whatever is in the way, so it can't hide inside it.
+    let lift = if ghost == Some(false) { 2.8 } else { 0.0 };
     parts.push(w.spawn((
-        Transform::at(cx, 0.1, cz),
+        Transform::at(cx, lift + 0.1, cz),
         Mesh::cuboid(Vec3::new(s - 0.15, 0.2, s - 0.15)),
         Material::hex(&tint("#7f7f7f")),
     )));
     let h = if level == 0 { 0.35 } else { 0.5 + 0.45 * f32::from(level) };
     let body = if level == 0 { "#bdb5a6" } else { colour(kind) };
     parts.push(w.spawn((
-        Transform::at(cx, 0.2 + h / 2.0, cz),
+        Transform::at(cx, lift + 0.2 + h / 2.0, cz),
         Mesh::cuboid(Vec3::new(s - 0.7, h, s - 0.7)),
         Material::hex(&tint(body)),
     )));
     if level > 0 {
         parts.push(w.spawn((
-            Transform::at(cx, 0.2 + h + 0.2, cz),
+            Transform::at(cx, lift + 0.2 + h + 0.2, cz),
             Mesh::cuboid(Vec3::new(s - 0.4, 0.4, s - 0.4)),
             Material::hex(&tint("#6d4c41")),
         )));
@@ -608,7 +610,23 @@ fn draw(w: &mut World) {
             w.despawn(e);
         }
         let ghost = match Kind::from_key(&placing) {
-            Some(kind) => spawn_building(w, kind, gx, gz, 1, false, false, Some(place_reason.is_empty())),
+            Some(kind) => {
+                let fits = place_reason.is_empty();
+                let mut parts = spawn_building(w, kind, gx, gz, 1, false, false, Some(fits));
+                // Its footprint on the ground, always visible.
+                let (cx, cz) = centre(gx, gz, kind.size());
+                let s = kind.size() as f32;
+                parts.push(w.spawn((
+                    Transform::at(cx, 0.04, cz),
+                    Mesh::plane(s, s),
+                    if fits {
+                        Material::hex("#7ee787").emissive(0.2, 0.6, 0.2)
+                    } else {
+                        Material::hex("#ff6b6b").emissive(0.8, 0.15, 0.15)
+                    },
+                )));
+                parts
+            }
             None => Vec::new(),
         };
         let mut s = w.resource_mut::<Shown>();

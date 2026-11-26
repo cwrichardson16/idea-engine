@@ -3,35 +3,20 @@
 Goal: see SPEC.md. Branch: claude/eloquent-goodall-rrq9xv. Exact SDK: ~/Projects/exact. Tool PATH: $HOME/.cargo/bin:$HOME/.bun/bin.
 
 ## Status
-- [ ] F1 grid and camera
-- [ ] F2 shop and placement
-- [ ] F3 production and collect
-- [ ] F4 builders and timers
-- [ ] F5 save and offline
-- [ ] F6 speed-ups
+- [x] F1 grid and camera: Chrome 2026-11-26, HUD 500/1000 gold and elixir, 50 gems, TH1 in the centre.
+- [x] F2 shop and placement: clicks land on the tile under the cursor; a blocked tile shows "Something is in the way" and greys out Place; elixir 500 to 350.
+- [x] F3 production and collect: collect took gold from 500 to 537; the glow shows when the mine is ready.
+- [~] F4 builders and timers: the hut takes builders 1/1 to 2/2 and they show 1/2 while busy; the first-build timer counts down. An upgrade timer is not yet seen in the browser (it needs 1000 gold for the TH); the tests cover it.
+- [x] F5 save and offline: after a reload the 3 buildings and the counters came back; the mine filled while away (+100).
+- [x] F6 speed-ups: Review took 📚 0 to 1; Finish with 📚 took it to 0 and the building was done; Finish with 💎 took gems 50 to 49 with 10 s left.
 
 ## Now
-- The game is at `village/`, scaffolded with `bun ~/Projects/exact/game/new.mjs <abs path>`. The name "game" is refused.
-- Written so far:
-  - `village/logic/src/economy.rs`: pure rules, all functions take `now` in ms.
-  - `village/logic/src/lib.rs`: draws the village, handles taps and HUD commands, keeps time.
-  - `village/logic/tests/sim.rs`: 20 tests.
-  - `village/app.contract`: the HUD, shop, selected-building panel and placing panel. `contract build` gives `[]`.
-- Running checks from `village/`:
-  - `bun exact.mjs test-rust` (the first run is cold and slow).
-  - `bun exact.mjs contract build app.contract --json`.
-  - `bun exact.mjs web` for the dev loop.
-- Done 2026-11-26, commit 3dd2779:
-  - test-rust passes 25/25, plus the lints.
-  - Saving uses route B: Rust emits `save v1|...`, the Contract `state village persist` keeps it, and Play posts `load ...`.
-- Now:
-  - The web build is running: `bun exact.mjs web --port 8765`, logging to ~/Projects/idea-engine-web.log.
-  - The skeptic review is running.
+- Commits: bfa3496 (the skeptic's fixes), then the ghost fix: a blocked ghost hid inside the Town Hall. It now floats above, and a red or green footprint sits on the ground.
 - Next:
-  1. Screenshot F1 to F6 in Chrome, and test a reload.
-  2. Fix the skeptic's findings.
-  3. Tick the boxes.
-
+  1. Check the red ghost in Chrome after the rebuild.
+  2. Run a verifier for the UI flows.
+  3. Commit and push.
+- Browser screenshots: /var/folders/_s/dk7yz8xd5fg6j8rbsq5_1rj40000gn/T/claude-chrome-screenshots-OsU5ko/ (temporary).
 
 ## Decisions
 See SPEC.md "Choices made" and V1.md §4.
@@ -41,4 +26,4 @@ See SPEC.md "Choices made" and V1.md §4.
 
 ## Learned / gotchas
 - A sample's lock can go stale. Fix it with `bun game/app/shells.mjs <game> --lock`.
-- The first cold web build takes about 25 minutes.
+- The first cold web build takes about 25 to 46 minutes. `test-rust` can trigger a long dev-loop rebuild; wait for "plan ready".
