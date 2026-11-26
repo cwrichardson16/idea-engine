@@ -50,3 +50,9 @@ Code size is small: ~5,600 lines (Rust + UI) for the whole game.
 - **Windows is early.** A web build covers Windows users in Chrome/Edge.
 
 Fallback if Exact doesn't work out: a web 3D engine such as Three.js/Babylon.js (WebGL, runs everywhere), or Godot.
+
+## Mac check — 2026-11-26 (M1, macOS 15.7.4, Chrome)
+- **3D renders.** The garden sample ran in Chrome on the M1 using WebGPU. The 3D world, shadows, character, fence, barrel and trees all drew, and the game UI (shop, HUD) sat on top. This settles the open question from the cloud run, which had no GPU.
+- The first cold web build took about 25 minutes. Later builds reuse the cache.
+- The garden lock needed `bun game/app/shells.mjs game/games/garden --lock` here too. Expect this for any sample after Exact updates.
+- Xcode isn't installed yet. It's only needed for native macOS and iOS builds.
