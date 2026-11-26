@@ -17,23 +17,14 @@ Self-graded flashcards are easy to fake, so rewards must not invite lying:
 
 - **Reward clearing the due queue, not raw card count.** The spaced-repetition scheduler caps how much you can do per day, so you can't farm it.
 - **Don't reward accuracy on self-graded cards.** That only teaches people to press "Good".
-- **Bonus rewards for checkable formats** (typed answers, multiple choice).
+- **Ignore button-mashing:** reviews answered too fast earn nothing.
 - **Cap rewards from new cards**, so nobody adds thousands of junk cards to farm.
 
-## Study engine & imports
+## Studying happens in Anki
 
-- Studying happens in-app, scheduled with **FSRS** (the open-source algorithm modern Anki uses).
-- Importing is how people get their existing material in:
-
-| Source | Feasibility | Phase |
-|---|---|---|
-| Anki `.apkg` file (decks + review history) | Easy: zipped SQLite | v1 |
-| CSV / Quizlet copy-paste | Easy | v1 |
-| AI-generated cards from notes/PDFs | Easy | v1 / v2 |
-| Anki add-on that reports reviews to our server | Doable | later |
-| AnkiDroid API | Android only | later |
-| AnkiConnect | Desktop only, Anki must be open | maybe |
-| AnkiWeb / AnkiMobile (iOS) | No public API | no |
+- Students keep studying in Anki exactly as they do now. The game is an **Anki add-on** that reacts to every review.
+- Reviews done on phones (AnkiMobile/AnkiDroid) sync to desktop Anki and get counted when desktop Anki syncs.
+- Later options for non-Anki users: our own study mode (FSRS scheduler), `.apkg` / CSV / Quizlet imports, AI-generated cards.
 
 ## First audience: med students
 
