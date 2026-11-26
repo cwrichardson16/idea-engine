@@ -3,7 +3,7 @@
 A spaced-repetition study app fused with a base-building tycoon game.
 **The pitch: a base-builder where the gems are flashcards.**
 
-> Status: early concept. Nothing is built yet; this file tracks the design as it takes shape.
+> Status: early concept. Nothing is built yet. v1 will be an Anki add-on, with clans and multiplayer planned.
 
 ## Core loop
 
@@ -50,9 +50,6 @@ Chosen as the starting audience (expand later to nursing, pharmacy, law, languag
 Overdue reviews are an army at your gates. The bigger your backlog, the bigger the siege; clearing reviews fights it off.
 That turns the most painful part of Anki (the backlog) into the game's core tension.
 
-## Open questions
+## Design
 
-1. **Companion to Anki or replacement?** Leaning companion for med students (see above).
-2. **PvP raids, or building only?** Middle ground: clans where members' studying adds to a shared project.
-3. **Can you progress with zero studying?** Slowly, or not at all?
-4. **Platform:** phone app or web first? Web is faster to prototype; studying mostly happens on phones.
+The full framework, roadmap and decision log live in [DESIGN.md](DESIGN.md).
