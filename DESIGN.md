@@ -10,7 +10,7 @@ Each section notes what's **decided**, what's a **proposed default** (we go with
 
 - **v1 is an Anki add-on.** The game lives inside desktop Anki and reacts to reviews as they happen.
 - **Multiplayer from the start:** accounts and a server exist early, so raids and clans aren't bolted on later.
-- **Later:** a phone app reusing the same game code. That's also where app-store purchases come in.
+- **Later:** the same game on phones: first as a web app (PWA), then in the app stores via Capacitor. See [PLATFORMS.md](PLATFORMS.md).
 
 Decided.
 
@@ -54,7 +54,7 @@ A determined person can still cheat a local app. Keep real-world stakes low (no 
 | Piece | Choice | Why |
 |---|---|---|
 | Add-on | Python, Anki add-on API (`gui_hooks.reviewer_did_answer_card`, review log) | Standard way to hook Anki |
-| Game UI | TypeScript + **Phaser** (2D game framework) in Anki's built-in web view | Web tech, reusable in the phone app |
+| Game UI | TypeScript + **Phaser 4** (2D game framework) in Anki's built-in web view | Same code runs in browsers, PWA and Capacitor apps (PLATFORMS.md) |
 | Server | **Supabase** (Postgres, auth, realtime, edge functions) | Cheap, fast to build on, realtime for clans |
 | Game state | **Server-authoritative** (resources, timers, purchases) | Stops save-file editing |
 | Battles | **Deterministic simulation**, so the server can re-run a raid and confirm the result | Stops faked raid results |
@@ -79,7 +79,7 @@ All art is original. No look-alikes of existing games.
 |---|---|---|
 | **0. Prototype** | Does the loop feel good? | Add-on hooks reviews, earns Knowledge, one building on a timer, local only |
 | **1–4. Game phases** | The game | See GAMEPLAY.md §10: core base + raids → clans → heroes/equipment → leagues/capital |
-| **5. Phone app** | Play away from desktop | Same game code, app-store purchases |
+| **5. Phones** | Play away from desktop | PWA first (no app review), then App Store/Google Play via Capacitor |
 
 ---
 
@@ -98,4 +98,5 @@ All art is original. No look-alikes of existing games.
 | 9 | Tech stack (section 4) | Proposed |
 | 10 | Name | **Open** |
 | 11 | Art sourcing | Prototype with one free pack; one consistent (likely commissioned) style before launch. See OPEN_SOURCE.md |
+| 13 | Platforms: one Phaser web game → Anki, PWA, then Capacitor app-store builds; skip React Native/Expo and Exact for now | Proposed |
 | 12 | Gems + payments from day one (server + accounts in v1; merchant-of-record checkout) | Decided |
