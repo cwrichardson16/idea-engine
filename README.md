@@ -1,7 +1,7 @@
 # Untitled study base-builder (name TBD)
 
-A hospital base-builder strategy game for med students, played inside Anki.
-**The pitch: a base-builder where studying is the power source.** Your reviews train your army; your overdue cards attack your hospital.
+A medieval base-builder strategy game for med students, played inside Anki.
+**The pitch: a base-builder where studying is the power source.** Your reviews speed up your builds and train your best troops; your overdue cards attack your base.
 
 > Status: early concept. Nothing is built yet. v1 will be an Anki add-on, with clans and multiplayer planned.
 
@@ -43,5 +43,5 @@ That turns the most painful part of Anki (the backlog) into the game's core tens
 
 ## Design
 
-- [GAMEPLAY.md](GAMEPLAY.md): game mechanics (resources, buildings, staff, Outbreak, raids, clans, money).
+- [GAMEPLAY.md](GAMEPLAY.md): game mechanics and open mechanic decisions.
 - [DESIGN.md](DESIGN.md): product, tech, roadmap and decision log.
