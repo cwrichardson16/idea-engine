@@ -97,6 +97,8 @@ All art is original. No look-alikes of existing games.
 | 8 | Build order: see GAMEPLAY.md §10 | Proposed |
 | 9 | Tech stack (section 4) | Proposed |
 | 10 | Name | **Open** |
-| 11 | Art sourcing | Prototype with one free pack; one consistent (likely commissioned) style before launch. See OPEN_SOURCE.md |
-| 13 | Platforms: one Phaser web game → Anki, PWA, then Capacitor app-store builds; skip React Native/Expo and Exact for now | Proposed |
-| 12 | Gems + payments from day one (server + accounts in v1; merchant-of-record checkout) | Decided |
+| 11 | Art sourcing | **3D.** Free CC0 3D kits (e.g. Kenney) to start. See OPEN_SOURCE.md |
+| 12 | Gems in the game from day one; real-money purchases and business setup (LLC, merchant of record) parked while it's a hobby | Decided |
+| 13 | Engine/platform: **exploring Exact by Expo** (3D engine, native apps + web from one codebase). Earlier Phaser/Capacitor plan kept in PLATFORMS.md as the fallback | Exploring |
+| 14 | **Hobby project for now, not a business** | Decided |
+| 15 | **3D game** | Decided |

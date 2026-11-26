@@ -1,9 +1,9 @@
 # Untitled study base-builder (name TBD)
 
-A medieval base-builder strategy game for med students, played inside Anki.
+A 3D medieval base-builder strategy game for med students, played inside Anki.
 **The pitch: a base-builder where studying is the power source.** Your reviews speed up your builds and power your daily rewards; your overdue cards attack your base.
 
-> Status: early concept. Nothing is built yet. v1 will be an Anki add-on, with clans and multiplayer planned.
+> Status: hobby project, early concept. Nothing is built yet. A 3D game; v1 hooks into Anki, with clans and multiplayer planned. Exploring Exact by Expo as the engine.
 
 ## Core loop
 
