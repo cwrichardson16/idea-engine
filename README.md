@@ -35,10 +35,24 @@ Self-graded flashcards are easy to fake, so rewards must not invite lying:
 | AnkiConnect | Desktop only, Anki must be open | maybe |
 | AnkiWeb / AnkiMobile (iOS) | No public API | no |
 
+## First audience: med students
+
+Chosen as the starting audience (expand later to nursing, pharmacy, law, language learners).
+
+- **Huge daily load:** 300–800+ Anki reviews a day, burnout, and missing a day snowballs into a backlog.
+- **Already locked into Anki** (AnKing deck, add-ons, FSRS), so asking them to switch apps is a hard sell.
+  → Likely means the game should be a **companion that tracks their Anki reviews**, not a replacement study app.
+- **Time-poor:** the game should be a few minutes of check-ins as a reward, never a time sink.
+- **Built-in social groups:** classmates share the same deck and the same exams (Step 1/2), so clans map naturally to classes and study groups.
+
+### Mechanic idea: the siege
+
+Overdue reviews are an army at your gates. The bigger your backlog, the bigger the siege; clearing reviews fights it off.
+That turns the most painful part of Anki (the backlog) into the game's core tension.
+
 ## Open questions
 
-1. **Who's it for first?** Leading candidate: med students (huge daily Anki loads, burnout, shared decks).
-   Alternatives: language learners, high schoolers, a friend group.
+1. **Companion to Anki or replacement?** Leaning companion for med students (see above).
 2. **PvP raids, or building only?** Middle ground: clans where members' studying adds to a shared project.
 3. **Can you progress with zero studying?** Slowly, or not at all?
 4. **Platform:** phone app or web first? Web is faster to prototype; studying mostly happens on phones.
