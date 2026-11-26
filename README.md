@@ -1,7 +1,7 @@
 # Untitled study base-builder (name TBD)
 
 A medieval base-builder strategy game for med students, played inside Anki.
-**The pitch: a base-builder where studying is the power source.** Your reviews speed up your builds and train your best troops; your overdue cards attack your base.
+**The pitch: a base-builder where studying is the power source.** Your reviews speed up your builds and power your daily rewards; your overdue cards attack your base.
 
 > Status: early concept. Nothing is built yet. v1 will be an Anki add-on, with clans and multiplayer planned.
 
@@ -43,5 +43,6 @@ That turns the most painful part of Anki (the backlog) into the game's core tens
 
 ## Design
 
-- [GAMEPLAY.md](GAMEPLAY.md): game mechanics and open mechanic decisions.
+- [CLASH_REFERENCE.md](CLASH_REFERENCE.md): how Clash of Clans works, system by system (the model for our mechanics).
+- [GAMEPLAY.md](GAMEPLAY.md): our version of each system, where studying plugs in, and open mechanic decisions.
 - [DESIGN.md](DESIGN.md): product, tech, roadmap and decision log.

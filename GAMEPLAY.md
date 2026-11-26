@@ -1,99 +1,145 @@
 # Gameplay
 
-Mechanics first. Names and flavor come later.
+Our version of each Clash of Clans system (see [CLASH_REFERENCE.md](CLASH_REFERENCE.md) for how CoC works).
 
-- **Setting:** medieval fantasy kingdom, in the style of the base-builder strategy genre. Light med-school humor in names and flavor text.
-- **Originality:** our own characters, art and name. Nothing copied from an existing game's units, art or look.
-- All names below are placeholders.
+- Mechanics first. **All names are placeholders**; theme and names come last.
+- Medieval fantasy setting. Our own characters, art and name.
+- Where it says **study hook**, that's where studying plugs into the system.
 
 ---
 
-## 1. How the genre works (reference)
+## 1. Where studying plugs in (summary)
 
-| System | How it works |
-|---|---|
-| Main building | One building's level gates everything else |
-| Resources | Collectors produce over time, storage caps them, raids steal them |
-| Builders | Only a few upgrades at once; timers run hours to days |
-| Army | Troops trained from a resource, limited by camp space |
-| Raids | Attack an AI-defended snapshot of another player's base; 1–3 stars; steal loot |
-| Defense | You lay out your base; you get raided while offline; a shield follows |
-| Clans | Donate troops, clan wars, co-op projects |
-| Money | Premium gems skip timers and buy resources and builders; a monthly pass; cosmetics |
+| CoC system | Our version | Study hook |
+|---|---|---|
+| Gems skip timers | Same, plus **Knowledge** (earned only by studying) also skips timers | Studying = free speed-ups |
+| Daily star bonus | **Daily study bonus**: clear your due cards → resources + ores | Daily reason to study |
+| Ores → hero equipment | Same, but ores come mostly from study bonuses, streaks and wars | Hero strength tracks consistent studying |
+| Magic items | Same, with study milestones as a main source | Big study days pay out |
+| Getting raided while offline | Same, **plus the backlog siege** (overdue cards attack you) | Not studying has an in-game cost |
+| Clan wars | Same, **plus study stars** | Studying helps your clan win |
+| Clan Games | **Clan study challenges** (collective review goals) | Clan studies together |
+| Clan Capital | Capital funded by members' Knowledge | Clan builds with studying |
 
-The genre runs on waiting, and charges you to skip the wait. **We add studying as a second way to skip, plus a source of power.**
+Everything else (building, raiding, defending, trophies, donations) works like CoC.
 
 ---
 
 ## 2. Resources
 
-| Resource | Comes from | Spent on | Buy with money? | Stolen in raids? |
+| Resource | How you get it | What it's for | Buy with gems? | Stolen in raids? |
 |---|---|---|---|---|
-| **Gold** | Passive (mines) + raid loot | Buildings, defenses, walls, basic troops | Yes (via gems) | Yes |
-| **Study points** | **Only Anki reviews** | Speed-ups, elite troops, heroes | **No** | **No** |
-| **Gems** | Real money + small free trickle | Speed-ups, gold, extra builders, cosmetics | Yes | No |
+| **Gold** | Mines, raid loot | Buildings, defenses, walls | Yes | Yes |
+| **Elixir** | Collectors, raid loot | Troops, spells, research, army buildings | Yes | Yes |
+| **Dark elixir** (unlocks mid-game) | Drills, raid loot | Strong troops, hero upgrades | Yes | Yes |
+| **Gems** | Real money; small free amounts | Skip timers, buy resources, builders, cosmetics | n/a | No |
+| **Knowledge** | **Only from Anki reviews** | Skip timers (like gems), clan capital contributions | **No** | **No** |
+| **Ores** (common / rare / epic) | Daily study bonus, streaks, wars, events | Hero equipment | Limited (offers) | No |
+| **Magic items** | Study milestones, clan challenges, the pass, events | Instant finishes, boosts | Some | No |
 
-**Rule: money buys time and looks; studying buys power.** Both gems and study points skip timers.
-Only study points get you elite troops and heroes, so you can't buy your way to winning raids or wars.
-
----
-
-## 3. Base & builders
-
-- Main building (Keep) levels gate everything.
-- Gold mines, gold storage, defenses, walls, army camps, barracks.
-- 2 builders to start; more with gems.
-- Timers are long, as in the genre. Study points and gems both shorten them.
+**Knowledge rules** (anti-cheese, see DESIGN.md §3): earned per **due** review, bonus for clearing the queue,
+nothing for reviews faster than ~1.5s, new cards capped.
 
 ---
 
-## 4. Army & raids
+## 3. Base, builders & progression
 
-- **Basic troops** cost gold, so anyone can raid.
-- **Elite troops and heroes** cost study points.
-- Raid an AI-defended snapshot of another player's base: 1–3 stars, steal gold, climb a rank ladder.
-- After being raided, you get a shield.
+Same as CoC:
+- Town Hall level caps everything; upgrading it unlocks new stuff.
+- Resource buildings, army buildings, lab, hero buildings, clan castle, defenses, walls, traps.
+- Builders are the bottleneck; the lab does one research at a time.
+- Timers go from minutes early on to days late game.
 
----
-
-## 5. The siege (from your backlog)
-
-- Overdue cards become an enemy army gathering outside your walls. It grows as cards come due and shrinks with every review.
-- At Anki's day rollover, whatever is left attacks your base automatically against your defenses.
-- **Soft losses:** it steals some gold and slows production for a while. It never destroys buildings.
-- Clear your queue and there's no siege, plus a bonus.
-- Vacation shield for exams and sickness. Comeback bonus for clearing a big backlog.
-- It uses the same battle engine as raids.
+**Study hook:** Knowledge skips timers. Paying players use gems; studying players use Knowledge; most will use both.
 
 ---
 
-## 6. Clans
+## 4. Attacking
 
-- **Donations:** request troops; clanmates send theirs, including elite ones trained with study points.
-- **Clan wars:** prep day, then battle day; each member gets 2 attacks; stars add up.
-  - **Study stars:** each member who clears their due queue on war days adds +1 star.
-    Based on completion, not raw counts, so big and small decks compete fairly.
-- **Clan project:** members contribute study points to a shared clan building that gives perks to everyone.
+Same as CoC: deploy troops with targeting preferences, spells, heroes, 3-minute battles, 3 stars, loot, trophies.
+
+**Daily study bonus** replaces the daily star bonus: clear your due cards for the day → resources, ores, sometimes a magic item.
+
+Optional idea to test later: **flashcard spells** (answer a card mid-battle to power up a spell). It might be fun, or it might be annoying mid-raid.
 
 ---
 
-## 7. Money
+## 5. Defending
 
+Same as CoC: base layout, offline raids, replays, revenge, shields, clan castle defense, separate war base.
+
+**Study hook: the backlog siege.**
+- Overdue cards become an enemy force gathering outside your walls. It grows as cards come due and shrinks with every review.
+- At Anki's day rollover, whatever's left attacks your base automatically, using the same battle engine as raids.
+- **Soft losses:** it steals some resources. It never destroys buildings.
+- Clear your queue and there's no siege. Vacation shield for exams and sickness. Comeback bonus for clearing a big backlog.
+
+---
+
+## 6. Leagues
+
+Same as CoC: trophy leagues, loot bonus by league, a top league with its own daily format, season resets.
+Single-player campaign as the tutorial.
+
+---
+
+## 7. Clans
+
+| CoC | Ours |
+|---|---|
+| Clan, roles, levels and perks | Same |
+| Chat | Skip at first (classes already have GroupMe/Discord; chat needs moderation) |
+| Donations | Same |
+| Clan Wars (prep day, battle day, 2 attacks each) | Same **+ study stars**: each member who clears their due cards on war days adds +1 star (completion-based, so big and small decks are fair) |
+| Clan War Leagues | Same (later) |
+| Clan Games | **Clan study challenges**: monthly collective goals ("clan clears 20,000 reviews", "everyone keeps a 5-day streak"), unlocking reward tiers |
+| Clan Capital + Raid Weekends | Capital funded by members' Knowledge; raids later |
+
+---
+
+## 8. Money
+
+Same as CoC:
 - Gem packs.
-- Monthly pass (~$5): challenges, cosmetics, small boosts. Never study points or elite troops.
-- Cosmetics: skins, decorations.
-- Builder packs.
-- No loot boxes.
+- Special offers.
+- Monthly pass (challenges include study goals).
+- Cosmetics: hero skins, sceneries, decorations.
+- Extra builders.
+
+**Study-only, never for sale:** Knowledge, study stars, clan study challenge progress. No loot boxes.
 
 ---
 
-## 8. Mechanic decisions
+## 9. What we're not doing (for now)
+
+- **Builder Base** (second village): cut. Too much extra scope.
+- **Clan chat**: cut at first.
+- **Clan Capital Raid Weekends**: later.
+
+---
+
+## 10. Phases
+
+CoC has a decade of content. We build a slice, then add systems in order.
+
+| Phase | Systems |
+|---|---|
+| **v1** | Town Hall, gold + elixir, a handful of buildings/troops/defenses, builders, lab, raids, trophies, shields, **Knowledge skips**, **daily study bonus**, **backlog siege**, gems |
+| **v2** | Clans: donations, clan wars with study stars, clan study challenges |
+| **v3** | Dark elixir, heroes, ores + equipment, magic items, monthly pass |
+| **v4** | Clan War Leagues, Clan Capital, events, top league |
+
+---
+
+## 11. Mechanic decisions
 
 | # | Question | Recommendation | Status |
 |---|---|---|---|
-| M1 | What do study points buy? | Speed-ups + elite troops + heroes | Open |
-| M2 | Can you raid without studying? | Yes, with basic gold troops; elite troops need studying | Open |
-| M3 | How harsh is the backlog siege? | Soft: steals gold, never destroys | Open |
-| M4 | Does studying count in clan wars? | Yes, study stars on top of attack stars | Open |
-| M5 | Does clearing your queue give a raid shield? | Maybe a short one; tune later | Open |
-| M6 | How much is one review worth? | Tune during the prototype | Later |
+| M1 | What does Knowledge do? | Skip timers like gems, and fund the clan capital | Open |
+| M2 | Daily study bonus instead of daily star bonus? | Yes | Open |
+| M3 | Backlog siege, and how harsh? | Yes, soft: steals resources, never destroys | Open |
+| M4 | Study stars in clan wars? | Yes, on top of attack stars | Open |
+| M5 | Clan Games become clan study challenges? | Yes | Open |
+| M6 | Cut Builder Base? | Yes | Open |
+| M7 | Flashcard spells mid-battle? | Prototype later, maybe | Open |
+| M8 | How much is one review worth? | Tune during the prototype | Later |

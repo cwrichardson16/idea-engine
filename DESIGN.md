@@ -21,18 +21,16 @@ Decided.
 Modeled on how base-builders work, with studying replacing waiting. Details are in GAMEPLAY.md.
 
 ```
-study in Anki ──► study points ──► speed-ups, elite troops, heroes ──► raids / clan wars
-                                                                          │
-passive gold ──► build & upgrade base ◄───────────────────────────────────┘ (stolen gold)
-      ▲
-gems (paid) speed it up
+study in Anki ──► Knowledge (skips timers) + daily study bonus (resources, ores) + clan study stars
+passive gold/elixir + raid loot ──► build, train, research ──► raids / clan wars
+gems (paid) skip timers too
 
 overdue cards ──► siege (enemy army attacks your base)
 ```
 
 Decided:
 - Medieval fantasy setting, with light med-school humor in names and flavor.
-- **Money buys time and looks; studying buys power.** Gems are for sale. Study points, elite troops, heroes and war stars never are.
+- Money works like CoC (gems, offers, pass, cosmetics). Study-only things are never for sale: Knowledge, study stars, clan study challenge progress.
 
 Proposed:
 - **Soft sieges:** they never destroy buildings or progress. Plus a comeback bonus and a vacation shield.
@@ -79,11 +77,9 @@ All art is original. No look-alikes of existing games.
 
 | Phase | Goal | Contents |
 |---|---|---|
-| **0. Prototype** | Does the loop feel good? | Add-on hooks reviews, earns study points, one building on a timer, local only |
-| **1. Single-player** | A real game | Accounts + server, base and buildings, gold/study points/gems, backlog siege (builds the battle engine), gem purchases |
-| **2. Raids** | Competition | Train troops, async PvP raids, rank ladder, shields |
-| **3. Clans** | Social hook | Donations, clan wars with study stars, clan project, White Coat Pass |
-| **4. Phone app** | Play away from desktop | Same game code, app-store purchases |
+| **0. Prototype** | Does the loop feel good? | Add-on hooks reviews, earns Knowledge, one building on a timer, local only |
+| **1–4. Game phases** | The game | See GAMEPLAY.md §10: core base + raids → clans → heroes/equipment → leagues/capital |
+| **5. Phone app** | Play away from desktop | Same game code, app-store purchases |
 
 ---
 
@@ -96,9 +92,9 @@ All art is original. No look-alikes of existing games.
 | 3 | Clans and multiplayer in scope | Decided |
 | 4 | Modeled on base-builder genre mechanics, with original characters/art/name | Decided |
 | 5 | Setting: medieval fantasy, light med humor | Decided |
-| 6 | Gems for sale; study points, elite troops, heroes and war stars never sold | Decided |
-| 7 | Mechanic decisions M1–M6 | See GAMEPLAY.md §8 |
-| 8 | Build order: siege → raids → clans | Proposed |
+| 6 | Money like CoC; study-only things never sold | Decided |
+| 7 | Mechanic decisions M1–M8 | See GAMEPLAY.md §11 |
+| 8 | Build order: see GAMEPLAY.md §10 | Proposed |
 | 9 | Tech stack (section 4) | Proposed |
 | 10 | Name | **Open** |
 | 11 | Art sourcing | **Open** |
