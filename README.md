@@ -45,6 +45,7 @@ That turns the most painful part of Anki (the backlog) into the game's core tens
 
 - [CLASH_REFERENCE.md](CLASH_REFERENCE.md): how Clash of Clans works, system by system (the model for our mechanics).
 - [V1.md](V1.md): the simple first version (gold, elixir, buildings, battles, studying) and its decisions.
+- [EXACT.md](EXACT.md): hands-on notes from building Exact's 3D sample game; verdict and caveats.
 - [PLATFORMS.md](PLATFORMS.md): Anki, web/PWA, app stores; Capacitor vs Expo vs Exact vs others; payments per platform.
 - [OPEN_SOURCE.md](OPEN_SOURCE.md): engines, art, and Anki add-ons we can use or learn from.
 - [GAMEPLAY.md](GAMEPLAY.md): our version of each system, where studying plugs in, and open mechanic decisions.
