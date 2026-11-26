@@ -1,0 +1,399 @@
+use exact_game::*;
+use village_logic::economy::*;
+use village_logic::*;
+
+const S: u64 = 1000;
+
+fn town_with(gold: u32, elixir: u32) -> Town {
+    let mut t = Town::new();
+    t.gold = gold;
+    t.elixir = elixir;
+    t
+}
+
+// ---- F1: the starting village ----
+
+#[test]
+fn starts_with_a_town_hall_in_the_middle_and_resources() {
+    let t = Town::new();
+    assert_eq!(t.buildings.len(), 1);
+    let th = &t.buildings[0];
+    assert_eq!((th.kind, th.level), (Kind::TownHall, 1));
+    assert_eq!((th.x, th.z), (13, 13));
+    assert_eq!((t.gold, t.elixir, t.gems, t.knowledge), (500, 500, 50, 0));
+    assert_eq!(t.caps(), (1000, 1000));
+    assert_eq!(t.builders(), 1);
+}
+
+#[test]
+fn the_world_publishes_the_hud() {
+    let mut sim = Sim::<Village>::new(Options::default()).unwrap();
+    sim.run(100.0);
+    let w = sim.world();
+    assert_eq!(w.resource::<Town>().gold, 500);
+    let h = hud(w, now_ms(w), String::new());
+    assert_eq!((h.gold, h.gold_cap, h.builders, h.town_hall), (500, 1000, 1, 1));
+    assert_eq!(h.shop.len(), 5);
+}
+
+// ---- F2: shop and placement ----
+
+#[test]
+fn placing_takes_the_cost_and_a_builder() {
+    let mut t = Town::new();
+    let id = t.place(Kind::ElixirCollector, 2, 2, 0).unwrap();
+    assert_eq!(t.gold, 350);
+    assert_eq!(t.builders_free(), 0);
+    let b = t.get(id).unwrap();
+    assert_eq!((b.level, b.busy()), (0, true));
+}
+
+#[test]
+fn cannot_overlap_or_go_off_the_grid() {
+    let mut t = town_with(900, 900);
+    // The Town Hall covers 13..17.
+    assert_eq!(t.can_place(Kind::GoldMine, 11, 11).unwrap_err(), "Something is in the way");
+    assert_eq!(t.can_place(Kind::GoldMine, 28, 0).unwrap_err(), "Off the edge");
+    assert_eq!(t.can_place(Kind::GoldMine, -1, 0).unwrap_err(), "Off the edge");
+    assert!(t.can_place(Kind::GoldMine, 10, 10).is_ok());
+    assert!(t.can_place(Kind::GoldMine, 27, 27).is_ok());
+    t.place(Kind::BuilderHut, 0, 0, 0).unwrap();
+    assert_eq!(t.can_place(Kind::GoldMine, 1, 1).unwrap_err(), "Something is in the way");
+    assert!(t.can_place(Kind::GoldMine, 2, 0).is_ok());
+}
+
+#[test]
+fn cannot_buy_without_resources() {
+    let t = town_with(100, 100);
+    assert_eq!(t.can_buy(Kind::GoldMine).unwrap_err(), "Need 150 elixir");
+    let mut t = town_with(100, 100);
+    assert!(t.place(Kind::GoldMine, 0, 0, 0).is_err());
+    assert_eq!((t.gold, t.elixir), (100, 100));
+}
+
+#[test]
+fn town_hall_level_caps_how_many() {
+    let mut t = town_with(1000, 1000);
+    t.place(Kind::BuilderHut, 0, 0, 0).unwrap();
+    t.place(Kind::GoldMine, 3, 0, 0).unwrap();
+    t.settle(60 * S);
+    assert_eq!(t.can_buy(Kind::GoldMine).unwrap_err(), "Upgrade Town Hall");
+    assert_eq!(t.can_buy(Kind::BuilderHut).unwrap_err(), "Max built");
+    assert_eq!(t.can_buy(Kind::TownHall).unwrap_err(), "Max built");
+}
+
+// ---- F3: production and collecting ----
+
+#[test]
+fn mines_produce_at_their_rate_up_to_their_cap() {
+    let mut t = Town::new();
+    let id = t.place(Kind::GoldMine, 0, 0, 0).unwrap();
+    // Built at 10 s; makes 2 gold/s from then; holds 100.
+    t.settle(10 * S);
+    assert_eq!(t.get(id).unwrap().waiting(10 * S), 0);
+    assert_eq!(t.get(id).unwrap().waiting(15 * S), 10);
+    assert_eq!(t.get(id).unwrap().waiting(15 * S + 499), 10);
+    assert_eq!(t.get(id).unwrap().waiting(10 * S + 1000 * S), 100);
+}
+
+#[test]
+fn collecting_moves_into_storage_and_overflow_stays() {
+    let mut t = Town::new();
+    let id = t.place(Kind::GoldMine, 0, 0, 0).unwrap();
+    t.gold = 950; // cap 1000
+    let got = t.collect(id, 100 * S); // 90 s of 2/s = 180, capped at 100
+    assert_eq!(got, 50);
+    assert_eq!(t.gold, 1000);
+    assert_eq!(t.get(id).unwrap().waiting(100 * S), 50);
+    t.gold = 0;
+    assert_eq!(t.collect(id, 100 * S), 50);
+    assert_eq!(t.get(id).unwrap().waiting(100 * S), 0);
+}
+
+#[test]
+fn collecting_often_loses_nothing() {
+    let mut a = Town::new();
+    let mut b = Town::new();
+    let ia = a.place(Kind::GoldMine, 0, 0, 0).unwrap();
+    let ib = b.place(Kind::GoldMine, 0, 0, 0).unwrap();
+    a.gold = 0;
+    b.gold = 0;
+    // a collects every 333 ms; b once at the end.
+    let mut t = 10 * S;
+    while t < 40 * S {
+        a.collect(ia, t);
+        t += 333;
+    }
+    a.collect(ia, 40 * S);
+    b.collect(ib, 40 * S);
+    assert_eq!(a.gold, 60);
+    assert_eq!(b.gold, 60);
+}
+
+#[test]
+fn storages_raise_the_cap_once_built() {
+    let mut t = Town::new();
+    let id = t.place(Kind::GoldStorage, 0, 0, 0).unwrap();
+    assert_eq!(t.caps().0, 1000);
+    t.settle(15 * S);
+    assert_eq!(t.get(id).unwrap().level, 1);
+    assert_eq!(t.caps(), (2500, 1000));
+}
+
+// ---- F4: builders and timers ----
+
+#[test]
+fn one_builder_means_one_job_and_a_hut_adds_a_second() {
+    let mut t = town_with(2000, 2000);
+    t.place(Kind::GoldMine, 0, 0, 0).unwrap();
+    assert_eq!(t.can_buy(Kind::ElixirCollector).unwrap_err(), "No free builder");
+    // The hut is instant, needs no builder, and adds one.
+    t.place(Kind::BuilderHut, 5, 0, 0).unwrap();
+    assert_eq!((t.builders(), t.builders_free()), (2, 1));
+    t.place(Kind::ElixirCollector, 8, 0, 0).unwrap();
+    assert_eq!(t.builders_free(), 0);
+    let th = t.buildings[0].id;
+    assert_eq!(t.can_upgrade(th).unwrap_err(), "No free builder");
+    assert_eq!(t.builders_busy(), 2);
+}
+
+#[test]
+fn timers_finish_at_the_right_time_and_levels_matter() {
+    let mut t = town_with(3000, 3000);
+    let id = t.place(Kind::GoldMine, 0, 0, 0).unwrap();
+    t.settle(9_999);
+    assert_eq!(t.get(id).unwrap().level, 0);
+    t.settle(10 * S);
+    assert_eq!(t.get(id).unwrap().level, 1);
+    // A mine can't pass the Town Hall's level.
+    assert_eq!(t.can_upgrade(id).unwrap_err(), "Upgrade Town Hall first");
+    let th = t.buildings[0].id;
+    t.upgrade(th, 10 * S).unwrap();
+    assert_eq!(t.gold, 2000);
+    t.settle(70 * S);
+    assert_eq!(t.town_hall_level(), 2);
+    assert_eq!(t.caps(), (2000, 2000));
+    t.upgrade(id, 70 * S).unwrap();
+    t.settle(100 * S);
+    let b = t.get(id).unwrap();
+    assert_eq!(b.level, 2);
+    // It was full (100) when the upgrade started and kept that; level 2 adds 3/s.
+    assert_eq!(b.waiting(110 * S), 130);
+}
+
+#[test]
+fn nothing_is_made_while_upgrading_but_banked_stays() {
+    let mut t = town_with(3000, 3000);
+    let th = t.buildings[0].id;
+    t.upgrade(th, 0).unwrap();
+    t.settle(60 * S);
+    let id = t.place(Kind::GoldMine, 0, 0, 60 * S).unwrap();
+    t.settle(70 * S);
+    // 20 gold made by 80 s, then upgrading for 30 s.
+    t.upgrade(id, 80 * S).unwrap();
+    assert_eq!(t.get(id).unwrap().waiting(100 * S), 20);
+    t.settle(110 * S);
+    assert_eq!(t.get(id).unwrap().waiting(110 * S), 20);
+    assert_eq!(t.get(id).unwrap().waiting(120 * S), 50);
+}
+
+#[test]
+fn max_level_stops_upgrades() {
+    let mut t = town_with(100_000, 100_000);
+    t.elixir = 100_000;
+    let th = t.buildings[0].id;
+    let mut now = 0;
+    for _ in 0..2 {
+        t.upgrade(th, now).unwrap();
+        now += 200 * S;
+        t.settle(now);
+        // Storage caps stop gold from going above the cap; refill for the test.
+        t.gold = 100_000;
+    }
+    assert_eq!(t.town_hall_level(), 3);
+    assert_eq!(t.can_upgrade(th).unwrap_err(), "Max level");
+}
+
+// ---- F5: time away ----
+
+#[test]
+fn time_away_equals_playing_through() {
+    let build = |t: &mut Town| {
+        t.place(Kind::GoldMine, 0, 0, 0).unwrap();
+        t.place(Kind::BuilderHut, 5, 0, 0).unwrap();
+        t.place(Kind::ElixirCollector, 8, 0, 0).unwrap();
+    };
+    let mut a = town_with(1000, 1000);
+    let mut b = town_with(1000, 1000);
+    build(&mut a);
+    build(&mut b);
+    // a lives through every second; b jumps 10 minutes.
+    for s in 0..=600 {
+        a.settle(s * S);
+    }
+    b.settle(600 * S);
+    a.collect_all(600 * S);
+    b.collect_all(600 * S);
+    assert_eq!(a.buildings, b.buildings);
+    assert_eq!((a.gold, a.elixir), (b.gold, b.elixir));
+}
+
+#[test]
+fn the_world_counts_time_away() {
+    let mut sim = Sim::<Village>::new(Options::default()).unwrap();
+    sim.run(100.0);
+    sim.post("buy goldmine");
+    sim.run(100.0);
+    sim.post("place");
+    sim.run(100.0);
+    let id = sim.world().resource::<Ui>().selected;
+    assert_ne!(id, 0);
+    assert_eq!(sim.world().resource::<Town>().get(id).unwrap().level, 0);
+    sim.post("away 60");
+    sim.run(100.0);
+    let w = sim.world();
+    let b = w.resource::<Town>().get(id).unwrap().clone();
+    assert_eq!(b.level, 1);
+    assert!(b.waiting(now_ms(w)) >= 100);
+}
+
+#[test]
+fn a_save_restores_the_village() {
+    let mut sim = Sim::<Village>::new(Options::default()).unwrap();
+    sim.run(100.0);
+    sim.post("buy goldmine");
+    sim.run(100.0);
+    sim.post("place");
+    sim.run(500.0);
+    let before = sim.world().resource::<Town>().buildings.clone();
+    let save = sim.save().unwrap();
+    let mut again = Sim::<Village>::new(Options::default()).unwrap();
+    again.restore(&save).unwrap();
+    assert_eq!(again.world().resource::<Town>().buildings, before);
+}
+
+// ---- F6: speed-ups ----
+
+#[test]
+fn skipping_costs_gems_or_knowledge_by_time_left() {
+    let mut t = Town::new();
+    let id = t.place(Kind::GoldMine, 0, 0, 0).unwrap(); // 10 s
+    assert_eq!(t.skip_cost(id, 0, Pay::Gems), Some(1));
+    assert_eq!(t.skip_cost(id, 0, Pay::Knowledge), Some(1));
+    assert_eq!(t.skip(id, 0, Pay::Knowledge).unwrap_err(), "Need 1 Knowledge");
+    t.review();
+    t.skip(id, 0, Pay::Knowledge).unwrap();
+    assert_eq!((t.knowledge, t.get(id).unwrap().level), (0, 1));
+    assert_eq!(t.builders_free(), 1);
+    assert_eq!(t.skip_cost(id, 0, Pay::Gems), None);
+}
+
+#[test]
+fn gem_skip_rounds_up() {
+    let mut t = town_with(5000, 5000);
+    let th = t.buildings[0].id;
+    t.upgrade(th, 0).unwrap(); // 60 s
+    assert_eq!(t.skip_cost(th, 0, Pay::Gems), Some(6));
+    assert_eq!(t.skip_cost(th, 59_001, Pay::Gems), Some(1));
+    assert_eq!(t.skip_cost(th, 0, Pay::Knowledge), Some(3));
+    t.skip(th, 1000, Pay::Gems).unwrap();
+    assert_eq!((t.gems, t.town_hall_level()), (44, 2));
+}
+
+#[test]
+fn knowledge_only_comes_from_reviews() {
+    let mut sim = Sim::<Village>::new(Options::default()).unwrap();
+    sim.post("away 3600");
+    sim.run(100.0);
+    assert_eq!(sim.world().resource::<Town>().knowledge, 0);
+    sim.post("review");
+    sim.post("review");
+    sim.run(100.0);
+    assert_eq!(sim.world().resource::<Town>().knowledge, 2);
+}
+
+// ---- Picking ----
+
+#[test]
+fn picking_finds_the_tile_under_the_middle_of_the_screen() {
+    let view = Vec2::new(1440.0, 756.0);
+    // The camera looks at LOOK, the screen's centre: x=0, z=1.5 → tile (15, 16).
+    assert_eq!(tile_at(view, view / 2.0), Some((15, 16)));
+    // Left of centre is a lower x; lower on screen is nearer the camera (higher z).
+    let (lx, _) = tile_at(view, Vec2::new(500.0, 378.0)).unwrap();
+    assert!(lx < 15);
+    let (_, nz) = tile_at(view, Vec2::new(720.0, 600.0)).unwrap();
+    assert!(nz > 16);
+    // The sky is not a tile.
+    assert_eq!(tile_at(view, Vec2::new(720.0, 2.0)), None);
+}
+
+#[test]
+fn tapping_while_placing_moves_the_ghost_and_tapping_a_building_selects_it() {
+    let mut sim = Sim::<Village>::new(Options::default()).unwrap();
+    sim.run(50.0);
+    sim.post("buy goldmine");
+    sim.run(50.0);
+    sim.post("tap 3 3");
+    sim.run(50.0);
+    {
+        let ui = sim.world().resource::<Ui>();
+        assert_eq!((ui.ghost_x, ui.ghost_z), (2, 2));
+    }
+    sim.post("place");
+    sim.run(50.0);
+    sim.post("cancel");
+    sim.post("tap 14 14");
+    sim.run(50.0);
+    let w = sim.world();
+    let th = w.resource::<Town>().buildings[0].id;
+    assert_eq!(w.resource::<Ui>().selected, th);
+    assert_eq!(w.resource::<Town>().get(2).map(|b| (b.x, b.z)), Some((2, 2)));
+}
+
+#[test]
+fn a_town_round_trips_through_its_save_text() {
+    let mut t = town_with(1000, 1000);
+    t.place(Kind::GoldMine, 0, 0, 0).unwrap();
+    t.place(Kind::BuilderHut, 5, 0, 0).unwrap();
+    t.review();
+    let text = t.encode();
+    let back = Town::decode(&text).unwrap();
+    assert_eq!(back.encode(), text);
+    assert_eq!(back.buildings, t.buildings);
+    assert_eq!((back.gold, back.elixir, back.gems, back.knowledge, back.next_id), (t.gold, t.elixir, t.gems, t.knowledge, t.next_id));
+    assert!(Town::decode("garbage").is_none());
+    assert!(Town::decode("").is_none());
+}
+
+#[test]
+fn the_world_saves_after_loading_and_a_reload_counts_time_away() {
+    // First visit: nothing saved yet.
+    let mut sim = Sim::<Village>::new(Options { epoch: 1_000_000.0, ..Options::default() }).unwrap();
+    sim.post("load");
+    sim.run(100.0);
+    sim.post("buy goldmine");
+    sim.run(100.0);
+    sim.post("place");
+    sim.run(500.0);
+    let saved = sim.world().resource::<Shown>().last_save.clone();
+    assert!(saved.starts_with("save v1|"), "{saved}");
+    let id = sim.world().resource::<Ui>().selected;
+    // Come back 10 minutes later in a fresh world.
+    let wall_then: f64 = saved.split('|').nth(2).unwrap().parse().unwrap();
+    let mut again = Sim::<Village>::new(Options { epoch: wall_then + 600_000.0, ..Options::default() }).unwrap();
+    again.post(format!("load {}", &saved["save ".len()..]));
+    again.run(100.0);
+    let w = again.world();
+    let b = w.resource::<Town>().get(id).unwrap().clone();
+    assert_eq!(b.level, 1, "the 10 s build finished while away");
+    assert_eq!(b.waiting(now_ms(w)), 100, "and the mine filled up");
+    assert_eq!(w.resource::<Town>().elixir, 350);
+}
+
+#[test]
+fn nothing_is_saved_before_the_load_arrives() {
+    let mut sim = Sim::<Village>::new(Options::default()).unwrap();
+    sim.run(3000.0);
+    assert_eq!(sim.world().resource::<Shown>().last_save, "");
+}
