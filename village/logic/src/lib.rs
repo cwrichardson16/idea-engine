@@ -204,13 +204,13 @@ impl Game for Village {
         let commands: Vec<String> = input.messages().iter().map(|m| m.to_string()).collect();
         for cmd in commands {
             if let Some(rest) = cmd.strip_prefix("load") {
-                load(w, rest.trim(), args.epoch);
+                load(w, rest.trim());
             } else {
                 command(w, &cmd);
             }
         }
         taps(w, input);
-        save(w, args.epoch);
+        save(w);
         if w.resource::<Town>().builders_busy() > 0 {
             w.busy("builders at work");
         }
@@ -230,14 +230,10 @@ pub fn away(w: &mut World, ms: u64) {
     w.resource_mut::<Town>().settle(now);
 }
 
-/// Wall-clock ms now, from the host's epoch at clock zero.
-fn wall_ms(w: &World, epoch: f64) -> f64 {
-    epoch + (w.tick() * 1000 / u64::from(w.hz())) as f64
-}
-
-/// Sends the village to the page to keep, when it changed or every few seconds.
-/// Format: `save v1|<village ms>|<wall ms>|<town>`.
-fn save(w: &mut World, epoch: f64) {
+/// Sends the village to the page to keep, when it changed or every few
+/// seconds. Format: `save v1|<village ms>|<town>`; the page appends
+/// `@<real wall-clock ms>` when it keeps it.
+fn save(w: &mut World) {
     if !w.resource::<Ui>().loaded {
         return;
     }
@@ -251,30 +247,37 @@ fn save(w: &mut World, epoch: f64) {
     if !changed && !due {
         return;
     }
-    let text = format!("save {SAVE_PREFIX}|{now}|{}|{town}", wall_ms(w, epoch) as u64);
+    let text = format!("save {SAVE_PREFIX}|{now}|{town}");
     w.emit(text.clone());
     let mut s = w.resource_mut::<Shown>();
     s.last_save = text;
     s.last_save_ms = now;
 }
 
-/// Restores what the page kept: `v1|<village ms>|<wall ms>|<town>`, and
-/// counts the wall-clock time since as time away. Anything else starts fresh.
-fn load(w: &mut World, text: &str, epoch: f64) {
+/// Restores what the page kept. The page sends `<real wall ms now>` and then
+/// what it kept, `v1|<village ms>|<town>@<real wall ms then>` (or nothing).
+/// The real time between the two is time away. Anything unreadable starts fresh.
+pub fn load(w: &mut World, text: &str) {
     w.resource_mut::<Ui>().loaded = true;
-    let mut f = text.splitn(4, '|');
-    let (Some(SAVE_PREFIX), Some(then), Some(wall), Some(town)) = (f.next(), f.next(), f.next(), f.next()) else {
+    let mut parts = text.splitn(2, ' ');
+    let wall_now: f64 = parts.next().and_then(|n| n.parse().ok()).unwrap_or(0.0);
+    let kept = parts.next().unwrap_or("").trim();
+    let Some((body, wall_then)) = kept.rsplit_once('@') else { return };
+    let mut f = body.splitn(3, '|');
+    let (Some(SAVE_PREFIX), Some(then), Some(town)) = (f.next(), f.next(), f.next()) else {
         return;
     };
-    let (Ok(then), Ok(wall), Some(town)) = (then.parse::<u64>(), wall.parse::<f64>(), Town::decode(town)) else {
+    let (Ok(then), Ok(wall_then), Some(town)) =
+        (then.parse::<u64>(), wall_then.parse::<f64>(), Town::decode(town))
+    else {
         return;
     };
     w.insert_resource(town);
-    // Continue village time from where it stopped, then add the time away.
+    // Continue village time from where it stopped, then add the real time away.
     let tick_ms = w.tick() * 1000 / u64::from(w.hz());
     w.resource_mut::<Clock>().offline_ms = then.saturating_sub(tick_ms);
-    let gap = wall_ms(w, epoch) - wall;
-    if epoch > 0.0 && gap >= 1000.0 {
+    let gap = wall_now - wall_then;
+    if gap >= 1000.0 && gap.is_finite() {
         away(w, gap as u64);
     }
     let mut ui = w.resource_mut::<Ui>();

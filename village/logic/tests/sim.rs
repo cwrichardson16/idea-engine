@@ -369,8 +369,8 @@ fn a_town_round_trips_through_its_save_text() {
 #[test]
 fn the_world_saves_after_loading_and_a_reload_counts_time_away() {
     // First visit: nothing saved yet.
-    let mut sim = Sim::<Village>::new(Options { epoch: 1_000_000.0, ..Options::default() }).unwrap();
-    sim.post("load");
+    let mut sim = Sim::<Village>::new(Options::default()).unwrap();
+    sim.post("load 1000000 ");
     sim.run(100.0);
     sim.post("buy goldmine");
     sim.run(100.0);
@@ -379,10 +379,10 @@ fn the_world_saves_after_loading_and_a_reload_counts_time_away() {
     let saved = sim.world().resource::<Shown>().last_save.clone();
     assert!(saved.starts_with("save v1|"), "{saved}");
     let id = sim.world().resource::<Ui>().selected;
-    // Come back 10 minutes later in a fresh world.
-    let wall_then: f64 = saved.split('|').nth(2).unwrap().parse().unwrap();
-    let mut again = Sim::<Village>::new(Options { epoch: wall_then + 600_000.0, ..Options::default() }).unwrap();
-    again.post(format!("load {}", &saved["save ".len()..]));
+    // The page keeps it stamped with the real time; come back 10 minutes later.
+    let kept = format!("{}@5000000", &saved["save ".len()..]);
+    let mut again = Sim::<Village>::new(Options::default()).unwrap();
+    again.post(format!("load 5600000 {kept}"));
     again.run(100.0);
     let w = again.world();
     let b = w.resource::<Town>().get(id).unwrap().clone();
@@ -396,4 +396,49 @@ fn nothing_is_saved_before_the_load_arrives() {
     let mut sim = Sim::<Village>::new(Options::default()).unwrap();
     sim.run(3000.0);
     assert_eq!(sim.world().resource::<Shown>().last_save, "");
+}
+
+#[test]
+fn a_reload_after_no_time_adds_nothing_and_bad_saves_start_fresh() {
+    let mut sim = Sim::<Village>::new(Options::default()).unwrap();
+    sim.post("load 1000 ");
+    sim.post("buy goldmine");
+    sim.run(100.0);
+    sim.post("place");
+    sim.run(2000.0);
+    let saved = sim.world().resource::<Shown>().last_save.clone();
+    let then: u64 = saved.split('|').nth(1).unwrap().parse().unwrap();
+    let mut again = Sim::<Village>::new(Options::default()).unwrap();
+    again.post(format!("load 9000 {}@9000", &saved["save ".len()..]));
+    again.run(34.0);
+    let w = again.world();
+    assert!(now_ms(w) >= then && now_ms(w) <= then + 100, "time continues, no jump");
+    assert_eq!(w.resource::<Town>().builders_busy(), 1);
+    for bad in ["load 9000 v1|5|garbage@1", "load 9000 v2|5|500,500,50,0,2;1,0,1,13,13,0,0,0,0@1", "load x"] {
+        let mut s = Sim::<Village>::new(Options::default()).unwrap();
+        s.post(bad);
+        s.run(100.0);
+        assert_eq!(s.world().resource::<Town>().buildings.len(), 1, "{bad}");
+        assert!(s.world().resource::<Ui>().loaded);
+    }
+}
+
+#[test]
+fn decode_rejects_villages_play_could_not_make() {
+    let ok = "500,500,50,0,3;1,0,1,13,13,0,0,0,0;2,1,1,0,0,0,0,0,0";
+    assert!(Town::decode(ok).is_some());
+    for bad in [
+        "500,500,50,0,1;1,0,1,13,13,0,0,0,0",                              // next_id not above ids
+        "500,500,50,0,3;1,0,1,13,13,0,0,0,0;1,1,1,0,0,0,0,0,0",            // duplicate id
+        "500,500,50,0,3;1,0,1,13,13,0,0,0,0;2,0,1,0,0,0,0,0,0",            // two town halls
+        "500,500,50,0,3;1,0,1,13,13,0,0,0,0;2,1,1,12,12,0,0,0,0",          // overlap
+        "500,500,50,0,3;1,0,1,13,13,0,0,0,0;2,1,1,28,0,0,0,0,0",           // off the grid
+        "500,500,50,0,3;1,0,3,13,13,9,0,0,0",                              // busy past max level
+        "500,500,50,0,4;1,0,1,13,13,0,0,0,0;2,1,0,0,0,9,0,0,0;3,2,0,5,0,9,0,0,0", // 2 busy, 1 builder
+        "500,500,50,0,3;1,0,1,13,13,0,0,0,0;2,1,1,0,0,0,0,999999999,0",    // over the mine's cap
+        "99999,500,50,0,2;1,0,1,13,13,0,0,0,0",                            // over storage
+        "500,500,50,0,3;1,0,1,13,13,0,0,0,0;2,1,1,2147483647,0,0,0,0,0",   // huge x
+    ] {
+        assert!(Town::decode(bad).is_none(), "{bad}");
+    }
 }

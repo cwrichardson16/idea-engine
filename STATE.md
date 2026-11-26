@@ -21,8 +21,17 @@ Goal: see SPEC.md. Branch: claude/eloquent-goodall-rrq9xv. Exact SDK: ~/Projects
   - `bun exact.mjs test-rust` (the first run is cold and slow).
   - `bun exact.mjs contract build app.contract --json`.
   - `bun exact.mjs web` for the dev loop.
-- Next: get test-rust green, then run web and screenshot F1 to F4.
-- F5: in-app save and continue across a page reload is NOT built yet. No Exact sample does it; see README "Rust data sources". Time away within a session works through `epoch`.
+- Done 2026-11-26, commit 3dd2779:
+  - test-rust passes 25/25, plus the lints.
+  - Saving uses route B: Rust emits `save v1|...`, the Contract `state village persist` keeps it, and Play posts `load ...`.
+- Now:
+  - The web build is running: `bun exact.mjs web --port 8765`, logging to ~/Projects/idea-engine-web.log.
+  - The skeptic review is running.
+- Next:
+  1. Screenshot F1 to F6 in Chrome, and test a reload.
+  2. Fix the skeptic's findings.
+  3. Tick the boxes.
+
 
 ## Decisions
 See SPEC.md "Choices made" and V1.md §4.

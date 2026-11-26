@@ -538,17 +538,55 @@ impl Town {
                 mark,
             });
         }
-        if !buildings.iter().any(|b| b.kind == Kind::TownHall) {
-            return None;
-        }
-        Some(Town {
+        let town = Town {
             gold,
             elixir,
             gems,
             knowledge,
             buildings,
             next_id,
-        })
+        };
+        town.valid().then_some(town)
+    }
+
+    /// Whether a village could have come from play: unique ids below next_id,
+    /// one Town Hall, counts and levels within limits, on the grid without
+    /// overlaps, no more busy builders than builders, nothing over its cap.
+    pub fn valid(&self) -> bool {
+        let bs = &self.buildings;
+        let ids_ok = bs.iter().enumerate().all(|(i, b)| {
+            b.id != 0 && b.id < self.next_id && bs[..i].iter().all(|o| o.id != b.id)
+        });
+        let th = self.town_hall_level();
+        let counts_ok = self.count(Kind::TownHall) == 1
+            && KINDS.iter().all(|&k| self.count(k) <= k.max_count(MAX_LEVEL));
+        let levels_ok = bs.iter().all(|b| {
+            let top = if b.busy() { b.level + 1 } else { b.level.max(1) };
+            top <= b.kind.max_level() && (b.kind == Kind::TownHall || b.level <= th)
+        });
+        let grid_ok = bs.iter().enumerate().all(|(i, b)| {
+            let s = b.kind.size();
+            (0..=GRID - s).contains(&b.x)
+                && (0..=GRID - s).contains(&b.z)
+                && bs[..i].iter().all(|o| {
+                    let os = o.kind.size();
+                    !(b.x < o.x + os && o.x < b.x + s && b.z < o.z + os && o.z < b.z + s)
+                })
+        });
+        let banked_ok = bs.iter().all(|b| {
+            let holds = b.kind.production(b.level).map_or(0, |(_, _, h)| h);
+            b.banked_milli <= holds * 1000
+        });
+        let (gc, ec) = self.caps();
+        ids_ok
+            && counts_ok
+            && levels_ok
+            && grid_ok
+            && banked_ok
+            && self.builders_busy() <= self.builders()
+            && self.next_id < u32::MAX
+            && self.gold <= gc.max(START_GOLD)
+            && self.elixir <= ec.max(START_ELIXIR)
     }
 
     /// The study hook: one due review earns one Knowledge. (Anki sends these later.)
