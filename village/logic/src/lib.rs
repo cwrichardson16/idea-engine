@@ -354,7 +354,10 @@ pub fn command(w: &mut World, cmd: &str) {
                 Ok(id) => {
                     let mut ui = w.resource_mut::<Ui>();
                     ui.placing.clear();
-                    ui.selected = id;
+                    // Nothing is selected after placing, so a double-click on
+                    // Place can't land on "Finish now" and spend gems.
+                    let _ = id;
+                    ui.selected = 0;
                 }
                 Err(why) => toast(w, why),
             }

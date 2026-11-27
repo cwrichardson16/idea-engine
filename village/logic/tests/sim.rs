@@ -246,8 +246,7 @@ fn the_world_counts_time_away() {
     sim.run(100.0);
     sim.post("place");
     sim.run(100.0);
-    let id = sim.world().resource::<Ui>().selected;
-    assert_ne!(id, 0);
+    let id = 2; // the first building after the Town Hall
     assert_eq!(sim.world().resource::<Town>().get(id).unwrap().level, 0);
     sim.post("away 60");
     sim.run(100.0);
@@ -378,7 +377,7 @@ fn the_world_saves_after_loading_and_a_reload_counts_time_away() {
     sim.run(500.0);
     let saved = sim.world().resource::<Shown>().last_save.clone();
     assert!(saved.starts_with("save v1|"), "{saved}");
-    let id = sim.world().resource::<Ui>().selected;
+    let id = 2; // the mine
     // The page keeps it stamped with the real time; come back 10 minutes later.
     let kept = format!("{}@5000000", &saved["save ".len()..]);
     let mut again = Sim::<Village>::new(Options::default()).unwrap();
@@ -441,4 +440,24 @@ fn decode_rejects_villages_play_could_not_make() {
     ] {
         assert!(Town::decode(bad).is_none(), "{bad}");
     }
+}
+
+#[test]
+fn a_double_click_on_place_spends_no_gems() {
+    let mut sim = Sim::<Village>::new(Options::default()).unwrap();
+    sim.run(50.0);
+    sim.post("buy goldmine");
+    sim.run(50.0);
+    sim.post("tap 3 3");
+    sim.run(50.0);
+    sim.post("place");
+    sim.run(50.0);
+    // The second click of a double-click lands where Place was.
+    sim.post("skip gems");
+    sim.run(50.0);
+    let w = sim.world();
+    assert_eq!(w.resource::<Ui>().selected, 0);
+    let town = w.resource::<Town>();
+    assert_eq!(town.gems, START_GEMS);
+    assert!(town.get(2).unwrap().busy());
 }

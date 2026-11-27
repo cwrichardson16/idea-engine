@@ -13,9 +13,9 @@ Goal: see SPEC.md. Branch: claude/eloquent-goodall-rrq9xv. Exact SDK: ~/Projects
 ## Now
 - Commits: bfa3496 (the skeptic's fixes), then the ghost fix: a blocked ghost hid inside the Town Hall. It now floats above, and a red or green footprint sits on the ground.
 - Next:
-  1. Check the red ghost in Chrome after the rebuild.
-  2. Run a verifier for the UI flows.
-  3. Commit and push.
+  1. Red ghost checked in Chrome (OK). The verifier passed F1, F2, F3, F5 and F6; F4 upgrades were out of reach (they need 1000 gold for the TH).
+  2. The verifier found a bug: double-clicking Place spent a gem, because "Finish now" appeared under the cursor. Fixed: nothing is selected after placing, and a test covers it (28/28). Check it in Chrome after the rebuild.
+  3. Next slice: a look pass (pan/zoom camera, CC0 Kenney/Quaternius models), then the army and battles. Clash rules research is summarized in V1.md decision V8 and the chat; the next slice needs barracks, army camp, cannon, archer tower, walls, stars and loot.
 - Browser screenshots: /var/folders/_s/dk7yz8xd5fg6j8rbsq5_1rj40000gn/T/claude-chrome-screenshots-OsU5ko/ (temporary).
 
 ## Decisions
