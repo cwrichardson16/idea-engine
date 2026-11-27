@@ -1,4 +1,16 @@
-# STATE: Slice 1, the village
+# STATE: Slice 2, army and battles (slice 1 done)
+
+## Slice 2 (SPEC-2.md, pressure-tested over 2 rounds, commit after a88dd52)
+- Phase A: camera, look, army buildings, home defenses, save v2.
+- Phase B: battle sim, campaign, battle and result screens.
+- [ ] G1 camera  - [ ] G2 look  - [ ] G3 army buildings  - [ ] G4 defenses  - [ ] G5 battle sim  - [ ] G6 battle UI  - [ ] G7 save v2
+- Art:
+  - ~/Downloads/kenney_castle-kit.zip (CC0, 2.2 MB, 76 GLB models).
+  - The Fantasy Town and Nature kit downloads didn't land; Chrome likely blocked repeat downloads.
+- Next:
+  1. Phase A, step 1: copy a few castle GLBs plus License.txt into village/art/, add village/app.json with game.assets true, and check that one model renders in Chrome after one rebuild. If not, use the hand-made shapes.
+
+# Slice 1, the village (done)
 
 Goal: see SPEC.md. Branch: claude/eloquent-goodall-rrq9xv. Exact SDK: ~/Projects/exact. Tool PATH: $HOME/.cargo/bin:$HOME/.bun/bin.
 
