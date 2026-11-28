@@ -1,5 +1,5 @@
 session: 2450836a-499e-482d-919d-4a3f50256f74
-Mid-flight: T4 Anki. Server live (migration 'anki', edge fn 'anki', test passed) BUT Conner dropped the honour button and wants stronger anti-cheat: wait for ANTICHEAT.md (pressure-tested design), then revise the edge function/add-on accordingly; drop log_reviews (revoke + migration 006).
-Also waiting: NAMES-WIDE.md (wide name scan) → present to Conner; rename only after he approves a set. Generic theme decided.
-Next build after that: game side of Anki link (Account panel "Link Anki" → code via anki edge fn 'make'), Python add-on in village/anki-addon/, then T5 tutorial/phone, T7 PvP (core per Conner), T6 link.
-Dev server is stopped. Supabase plugin tools only, project lqcecndhhmbifrxbexne. Never share the link until Conner's final go.
+Done this session: T3 complete (cloud save, restore, bug report), rename to Stonehaven (verified), anti-cheat design SHIP (ANTICHEAT.md + amendments), honour button dropped.
+NEXT (exact): build T4 per ANTICHEAT.md — migration 006 (per-review rows table with reason/credited, pairing device key + card snapshot, backfill queue), rework edge fn `anki`, Python add-on in village/anki-addon/ (reviewer_did_answer_card / sync hooks, revlog reader, hashed card ids), game Account panel "Link Anki" (code via anki 'make'). Prove with a script posting like the add-on incl. cheat cases; skeptic + verifier.
+Open question to Conner: keep computer bases (tutorial + backup raid target) or cut them.
+Dev server running (task bn15mth3y). Supabase plugin tools only, project lqcecndhhmbifrxbexne. Never share the link until Conner's final go.
