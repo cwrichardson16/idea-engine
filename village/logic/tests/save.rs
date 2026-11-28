@@ -6,6 +6,14 @@ use village_logic::cloud::Cloud;
 use village_logic::economy::*;
 use village_logic::*;
 
+/// The village with its art baked in memory: setup waits for `Game::ASSETS`
+/// (the animated Spearman), so a plain `Sim::new` never runs it. One call
+/// site, so the bake runs once per test binary.
+fn new_sim() -> Sim<Village> {
+    exact_game::sim_with_art!(Options::default()).unwrap()
+}
+
+
 /// One frozen save string per format ever shipped, with the buildings'
 /// (kind, x, z) it must decode to. Never edit one: add the next format's
 /// string when SAVE_CONTRACT is bumped (village/CLAUDE.md "SAVE_CONTRACT").
@@ -79,7 +87,7 @@ fn old_saves_decode() {
     assert_eq!(Town::decode(FROZEN[5].1).unwrap().camp_day, 20001);
     // And through the page's load path, every one loads into the world.
     for (name, text, want) in FROZEN {
-        let mut sim = Sim::<Village>::new(Options::default()).unwrap();
+        let mut sim = new_sim();
         sim.post(format!("load 9000 v2|5000|{text}@9000"));
         sim.run(100.0);
         let w = sim.world();
@@ -167,7 +175,7 @@ fn ten_minutes_without_a_save(sim: &mut Sim<Village>) {
 fn failed_load_never_uploads() {
     // The page kept a save this build can't read (overlapping buildings and a broken army).
     let corrupt = "v2|5000|500,500,50,0,3;1,0,1,13,13,0,0,0,0;2,1,1,13,13,0,0,0,0#x#@1795849000000";
-    let mut sim = Sim::<Village>::new(Options::default()).unwrap();
+    let mut sim = new_sim();
     net(&mut sim, "");
     sim.post("cred p@players.invalid secret");
     sim.post(format!("load 1795850000000 {corrupt}"));
@@ -196,7 +204,7 @@ fn failed_load_never_uploads() {
 
     // A readable cloud save, if there is one, replaces the fresh village and
     // saving resumes (the cloud copy is the newest readable truth).
-    let mut sim = Sim::<Village>::new(Options::default()).unwrap();
+    let mut sim = new_sim();
     net(&mut sim, "");
     sim.post("cred p@players.invalid secret");
     sim.post(format!("load 1795850000000 {corrupt}"));
@@ -211,7 +219,7 @@ fn failed_load_never_uploads() {
 
     // A cloud save this build can't read (say a newer version's) is never
     // uploaded over, even when this device's village is newer.
-    let mut sim = Sim::<Village>::new(Options::default()).unwrap();
+    let mut sim = new_sim();
     net(&mut sim, "");
     sim.post("cred p@players.invalid secret");
     sim.post("load 1795850000000 ");

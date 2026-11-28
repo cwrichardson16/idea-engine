@@ -2,6 +2,14 @@ use exact_game::*;
 use village_logic::economy::*;
 use village_logic::*;
 
+/// The village with its art baked in memory: setup waits for `Game::ASSETS`
+/// (the animated Spearman), so a plain `Sim::new` never runs it. One call
+/// site, so the bake runs once per test binary.
+fn new_sim() -> Sim<Village> {
+    exact_game::sim_with_art!(Options::default()).unwrap()
+}
+
+
 const S: u64 = 1000;
 const MIN: u64 = 60 * S;
 const HOUR: u64 = 60 * MIN;
@@ -29,7 +37,7 @@ fn starts_with_a_town_hall_in_the_middle_and_resources() {
 
 #[test]
 fn the_world_publishes_the_hud() {
-    let mut sim = Sim::<Village>::new(Options::default()).unwrap();
+    let mut sim = new_sim();
     sim.run(100.0);
     let w = sim.world();
     assert_eq!(w.resource::<Town>().gold, 500);
@@ -246,7 +254,7 @@ fn time_away_equals_playing_through() {
 
 #[test]
 fn the_world_counts_time_away() {
-    let mut sim = Sim::<Village>::new(Options::default()).unwrap();
+    let mut sim = new_sim();
     sim.run(100.0);
     sim.post("buy goldmine");
     sim.run(100.0);
@@ -308,7 +316,7 @@ fn gem_skip_rounds_up() {
 
 #[test]
 fn knowledge_only_comes_from_reviews_and_dev_needs_the_switch() {
-    let mut sim = Sim::<Village>::new(Options::default()).unwrap();
+    let mut sim = new_sim();
     sim.post("away 3600");
     sim.run(100.0);
     assert_eq!(sim.world().resource::<Town>().knowledge, 0);
@@ -344,7 +352,7 @@ fn picking_finds_the_tile_under_the_middle_of_the_screen() {
 
 #[test]
 fn tapping_while_placing_moves_the_ghost_and_tapping_a_building_selects_it() {
-    let mut sim = Sim::<Village>::new(Options::default()).unwrap();
+    let mut sim = new_sim();
     sim.run(50.0);
     sim.post("buy goldmine");
     sim.run(50.0);
@@ -385,7 +393,7 @@ fn a_town_round_trips_through_its_save_text() {
 #[test]
 fn the_world_saves_after_loading_and_a_reload_counts_time_away() {
     // First visit: nothing saved yet.
-    let mut sim = Sim::<Village>::new(Options::default()).unwrap();
+    let mut sim = new_sim();
     sim.post("load 1000000 ");
     sim.run(100.0);
     sim.post("buy goldmine");
@@ -397,7 +405,7 @@ fn the_world_saves_after_loading_and_a_reload_counts_time_away() {
     let id = 2; // the mine
     // The page keeps it stamped with the real time; come back 11 hours later.
     let kept = format!("{}@5000000", &saved["save ".len()..]);
-    let mut again = Sim::<Village>::new(Options::default()).unwrap();
+    let mut again = new_sim();
     again.post(format!("load {} {kept}", 5_000_000 + 11 * HOUR));
     again.run(100.0);
     let w = again.world();
@@ -409,14 +417,14 @@ fn the_world_saves_after_loading_and_a_reload_counts_time_away() {
 
 #[test]
 fn nothing_is_saved_before_the_load_arrives() {
-    let mut sim = Sim::<Village>::new(Options::default()).unwrap();
+    let mut sim = new_sim();
     sim.run(3000.0);
     assert_eq!(sim.world().resource::<Shown>().last_save, "");
 }
 
 #[test]
 fn a_reload_after_no_time_adds_nothing_and_bad_saves_start_fresh() {
-    let mut sim = Sim::<Village>::new(Options::default()).unwrap();
+    let mut sim = new_sim();
     sim.post("load 1000 ");
     sim.post("buy goldmine");
     sim.run(100.0);
@@ -424,14 +432,14 @@ fn a_reload_after_no_time_adds_nothing_and_bad_saves_start_fresh() {
     sim.run(2000.0);
     let saved = sim.world().resource::<Shown>().last_save.clone();
     let then: u64 = saved.split('|').nth(1).unwrap().parse().unwrap();
-    let mut again = Sim::<Village>::new(Options::default()).unwrap();
+    let mut again = new_sim();
     again.post(format!("load 9000 {}@9000", &saved["save ".len()..]));
     again.run(34.0);
     let w = again.world();
     assert!(now_ms(w) >= then && now_ms(w) <= then + 100, "time continues, no jump");
     assert_eq!(w.resource::<Town>().builders_busy(), 1);
     for bad in ["load 9000 v1|5|garbage@1", "load 9000 v9|5|500,500,50,0,2;1,0,1,13,13,0,0,0,0@1", "load x"] {
-        let mut s = Sim::<Village>::new(Options::default()).unwrap();
+        let mut s = new_sim();
         s.post(bad);
         s.run(100.0);
         assert_eq!(s.world().resource::<Town>().buildings.len(), 1, "{bad}");
@@ -439,7 +447,7 @@ fn a_reload_after_no_time_adds_nothing_and_bad_saves_start_fresh() {
     }
     // Unreadable kept text plays fresh but never saves over it (failed_load_never_uploads).
     for bad in ["load 9000 v1|5|garbage@1", "load 9000 v9|5|500,500,50,0,2;1,0,1,13,13,0,0,0,0@1"] {
-        let mut s = Sim::<Village>::new(Options::default()).unwrap();
+        let mut s = new_sim();
         s.post(bad);
         s.run(12_000.0);
         assert_eq!(s.world().resource::<Shown>().last_save, "", "{bad}");
@@ -468,7 +476,7 @@ fn decode_rejects_villages_play_could_not_make() {
 
 #[test]
 fn a_double_click_on_place_spends_no_gems() {
-    let mut sim = Sim::<Village>::new(Options::default()).unwrap();
+    let mut sim = new_sim();
     sim.run(50.0);
     sim.post("buy goldmine");
     sim.run(50.0);
@@ -558,7 +566,7 @@ const V1_SAVE: &str = "v1|200|500,350,50,0,3;1,0,1,13,13,0,0,0,0;2,1,0,9,9,10200
 
 #[test]
 fn a_slice_one_save_still_loads_with_an_empty_army() {
-    let mut sim = Sim::<Village>::new(Options::default()).unwrap();
+    let mut sim = new_sim();
     sim.post(format!("load 9000 {V1_SAVE}@9000"));
     sim.run(100.0);
     let town = sim.world().resource::<Town>();
@@ -634,7 +642,7 @@ fn housing_counts_queued_troops_and_cancelling_refunds_in_full() {
 
 #[test]
 fn training_finishes_while_away() {
-    let mut sim = Sim::<Village>::new(Options::default()).unwrap();
+    let mut sim = new_sim();
     sim.run(50.0);
     {
         let mut town = sim.world_mut().resource_mut::<Town>();
@@ -683,7 +691,7 @@ fn dev_shortcuts_fill_storage_and_raise_the_town_hall() {
 // ---- Raids (SPEC-2 G5/G6) ----
 
 fn raid_world() -> Sim<Village> {
-    let mut sim = Sim::<Village>::new(Options::default()).unwrap();
+    let mut sim = new_sim();
     sim.run(50.0);
     let mut t = army_town();
     t.army = vec![8, 0, 0];
@@ -693,7 +701,7 @@ fn raid_world() -> Sim<Village> {
 
 #[test]
 fn a_raid_needs_troops() {
-    let mut sim = Sim::<Village>::new(Options::default()).unwrap();
+    let mut sim = new_sim();
     sim.run(50.0);
     command(sim.world_mut(), "attack 0");
     assert!(!fight::active(sim.world()));
@@ -732,6 +740,31 @@ fn a_whole_raid_takes_troops_brings_loot_home_and_keeps_stars() {
     command(sim.world_mut(), "home");
     assert!(!fight::active(sim.world()));
     assert_eq!(hud_after(&sim).campaign[0].stars, 3);
+}
+
+/// The Spearman is the animated Knight: it walks to its target, then stabs.
+#[test]
+fn a_dropped_spearman_is_the_knight_walking_then_stabbing() {
+    let mut sim = raid_world();
+    command(sim.world_mut(), "attack 0");
+    command(sim.world_mut(), "tap 0 0");
+    sim.run(200.0);
+    let clip_of = |sim: &Sim<Village>| {
+        let w = sim.world();
+        let e = w.resource::<fight::Fight>().units[0];
+        assert_eq!(w.get::<Mesh>(e).map(|m| m.clone()), Some(Mesh::asset(fight::SPEARMAN_MODEL)));
+        w.get::<Animation>(e).map(|a| a.clip.clone()).unwrap_or_default()
+    };
+    assert_eq!(clip_of(&sim), "Walking_A");
+    let mut seen_stab = false;
+    for _ in 0..120 {
+        sim.run(500.0);
+        if clip_of(&sim) == "1H_Melee_Attack_Stab" {
+            seen_stab = true;
+            break;
+        }
+    }
+    assert!(seen_stab, "the Spearman reached a building and swung");
 }
 
 fn hud_after(sim: &Sim<Village>) -> Hud {
@@ -895,7 +928,7 @@ fn ask(sim: &Sim<Village>) -> String {
 
 #[test]
 fn cloud_joins_signs_in_counts_anki_reviews_once_and_uploads_with_its_version() {
-    let mut sim = Sim::<Village>::new(Options::default()).unwrap();
+    let mut sim = new_sim();
     net(&mut sim, "");
     sim.post("load 1795850000000 ");
     sim.run(100.0);
@@ -925,7 +958,7 @@ fn cloud_joins_signs_in_counts_anki_reviews_once_and_uploads_with_its_version() 
 
 #[test]
 fn a_cloud_conflict_loads_the_other_devices_save() {
-    let mut sim = Sim::<Village>::new(Options::default()).unwrap();
+    let mut sim = new_sim();
     net(&mut sim, "");
     sim.post("cred p@players.invalid secret");
     sim.post("load 1795850000000 ");
@@ -951,7 +984,7 @@ fn a_cloud_conflict_loads_the_other_devices_save() {
 
 #[test]
 fn a_conflict_during_a_raid_waits_and_never_overwrites_the_newer_save() {
-    let mut sim = Sim::<Village>::new(Options::default()).unwrap();
+    let mut sim = new_sim();
     net(&mut sim, "");
     sim.post("cred p@players.invalid secret");
     sim.post("load 1795850000000 ");
@@ -979,7 +1012,7 @@ fn a_conflict_during_a_raid_waits_and_never_overwrites_the_newer_save() {
 
 #[test]
 fn anki_reviews_lost_to_a_conflict_are_counted_from_the_winning_save() {
-    let mut sim = Sim::<Village>::new(Options::default()).unwrap();
+    let mut sim = new_sim();
     net(&mut sim, "");
     sim.post("cred p@players.invalid secret");
     sim.post("load 1795850000000 ");
@@ -1002,7 +1035,7 @@ fn anki_reviews_lost_to_a_conflict_are_counted_from_the_winning_save() {
 
 #[test]
 fn offline_keeps_playing_and_retries() {
-    let mut sim = Sim::<Village>::new(Options::default()).unwrap();
+    let mut sim = new_sim();
     net(&mut sim, "");
     sim.post("load 1795850000000 ");
     sim.run(100.0);
@@ -1015,7 +1048,7 @@ fn offline_keeps_playing_and_retries() {
 
 #[test]
 fn signing_in_again_after_the_token_expires_keeps_newer_local_play() {
-    let mut sim = Sim::<Village>::new(Options::default()).unwrap();
+    let mut sim = new_sim();
     net(&mut sim, "");
     sim.post("cred p@players.invalid secret");
     sim.post("load 1795850000000 ");
@@ -1044,7 +1077,7 @@ fn signing_in_again_after_the_token_expires_keeps_newer_local_play() {
 
 #[test]
 fn a_restore_code_moves_the_village_to_this_device() {
-    let mut sim = Sim::<Village>::new(Options::default()).unwrap();
+    let mut sim = new_sim();
     net(&mut sim, "");
     sim.post("cred new@players.invalid pw");
     sim.post("load 1795850000000 ");
@@ -1076,7 +1109,7 @@ fn a_restore_code_moves_the_village_to_this_device() {
 
 #[test]
 fn the_restore_code_shows_once_made() {
-    let mut sim = Sim::<Village>::new(Options::default()).unwrap();
+    let mut sim = new_sim();
     net(&mut sim, "");
     sim.post("cred p@players.invalid pw");
     sim.post("load 1795850000000 ");
@@ -1092,7 +1125,7 @@ fn the_restore_code_shows_once_made() {
 
 #[test]
 fn a_device_whose_village_moved_stops_saving_and_never_makes_a_copy() {
-    let mut sim = Sim::<Village>::new(Options::default()).unwrap();
+    let mut sim = new_sim();
     net(&mut sim, "");
     sim.post("cred old@players.invalid pw");
     sim.post("load 1795850000000 ");
@@ -1118,7 +1151,7 @@ fn a_device_whose_village_moved_stops_saving_and_never_makes_a_copy() {
 
 #[test]
 fn a_bug_report_goes_up_with_the_save_and_waits_for_sign_in() {
-    let mut sim = Sim::<Village>::new(Options::default()).unwrap();
+    let mut sim = new_sim();
     net(&mut sim, "");
     sim.post("cred p@players.invalid pw");
     sim.post("load 1795850000000 ");
@@ -1143,7 +1176,7 @@ fn durations_read_as_people_say_them() {
         assert_eq!(duration(secs), text, "{secs}");
     }
     // The HUD shows them: a Keep upgrade is hours, not raw seconds.
-    let mut sim = Sim::<Village>::new(Options::default()).unwrap();
+    let mut sim = new_sim();
     sim.run(50.0);
     let th = sim.world().resource::<Town>().buildings[0].id;
     sim.world_mut().resource_mut::<Ui>().selected = th;
