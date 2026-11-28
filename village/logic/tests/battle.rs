@@ -131,7 +131,7 @@ fn drops_inside_the_red_border_or_off_the_map_are_refused() {
     // The Town Hall sits at (13, 13); one tile around it is the border.
     assert_eq!(b.can_deploy(Troop::Fighter, 12, 12), Err("Too close: drop outside the red border".into()));
     assert_eq!(b.can_deploy(Troop::Fighter, -1, 0), Err("Off the map".into()));
-    assert_eq!(b.can_deploy(Troop::Archer, 0, 0), Err("No Archers left".into()));
+    assert_eq!(b.can_deploy(Troop::Archer, 0, 0), Err("No Pharmacists left".into()));
     assert!(b.can_deploy(Troop::Fighter, 0, 0).is_ok());
 }
 

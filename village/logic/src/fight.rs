@@ -43,7 +43,7 @@ pub fn can_attack(w: &World, camp: usize) -> Result<(), String> {
         return Err("Already raiding".into());
     }
     if w.resource::<Town>().army.iter().all(|&n| n == 0) {
-        return Err("Train some troops first".into());
+        return Err("Train some staff first".into());
     }
     Ok(())
 }

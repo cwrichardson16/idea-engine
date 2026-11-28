@@ -6,6 +6,11 @@ pub mod battle;
 pub mod economy;
 pub mod fight;
 
+/// Dev shortcuts (`dev …`, the test `review`) only work after the HUD's hidden
+/// 5-tap switch sends `devmode on`. Not saved: off on every fresh start.
+#[derive(Default, Resource)]
+pub struct DevMode(pub bool);
+
 use economy::{Kind, Pay, Res, Town, Troop, GRID, KINDS, TROOPS};
 use exact_game::*;
 
@@ -311,6 +316,7 @@ impl Game for Village {
         w.insert_resource(CamView::home());
         w.insert_resource(Shown::default());
         w.insert_resource(fight::Fight::default());
+        w.insert_resource(DevMode::default());
         draw(w);
     }
 
@@ -534,6 +540,8 @@ pub fn command(w: &mut World, cmd: &str) {
                 toast(w, why);
             }
         }
+        "devmode" => w.resource_mut::<DevMode>().0 = arg == "on",
+        "review" | "dev" if !w.resource::<DevMode>().0 => {}
         "review" => w.resource_mut::<Town>().review(),
         "train" => {
             let Some(t) = Troop::from_key(arg) else { return };

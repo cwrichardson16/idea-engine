@@ -77,16 +77,16 @@ impl Kind {
     }
     pub fn name(self) -> &'static str {
         match self {
-            Kind::TownHall => "Town Hall",
-            Kind::GoldMine => "Gold Mine",
-            Kind::ElixirCollector => "Elixir Collector",
-            Kind::GoldStorage => "Gold Storage",
-            Kind::ElixirStorage => "Elixir Storage",
-            Kind::BuilderHut => "Builder Hut",
-            Kind::Barracks => "Barracks",
-            Kind::ArmyCamp => "Army Camp",
-            Kind::Cannon => "Cannon",
-            Kind::ArcherTower => "Archer Tower",
+            Kind::TownHall => "Teaching Hospital",
+            Kind::GoldMine => "Grant Office",
+            Kind::ElixirCollector => "Coffee Cart",
+            Kind::GoldStorage => "Grant Bank",
+            Kind::ElixirStorage => "Coffee Store",
+            Kind::BuilderHut => "Resident Lounge",
+            Kind::Barracks => "Lecture Hall",
+            Kind::ArmyCamp => "On-Call Room",
+            Kind::Cannon => "Defibrillator",
+            Kind::ArcherTower => "Syringe Tower",
         }
     }
     /// Footprint, in tiles per side.
@@ -217,9 +217,9 @@ impl Troop {
     }
     pub fn name(self) -> &'static str {
         match self {
-            Troop::Fighter => "Fighter",
-            Troop::Archer => "Archer",
-            Troop::Brute => "Brute",
+            Troop::Fighter => "Intern",
+            Troop::Archer => "Pharmacist",
+            Troop::Brute => "Attending",
         }
     }
     pub fn index(self) -> usize {
@@ -397,16 +397,16 @@ impl Town {
     pub fn can_train(&self, t: Troop) -> Result<(), String> {
         let have = self.barracks_level();
         if have == 0 {
-            return Err("Build a Barracks".into());
+            return Err("Build a Lecture Hall".into());
         }
         if have < t.barracks_level() {
-            return Err(format!("Needs Barracks level {}", t.barracks_level()));
+            return Err(format!("Needs Lecture Hall level {}", t.barracks_level()));
         }
         if self.queue.len() >= QUEUE_MAX {
             return Err("Queue full".into());
         }
         if self.housing_used() + t.housing() > self.housing_cap() {
-            return Err("Army camps full".into());
+            return Err("On-Call Rooms full".into());
         }
         self.afford(Res::Elixir, t.cost())
     }
@@ -557,8 +557,8 @@ impl Town {
     fn afford(&self, r: Res, n: u32) -> Result<(), String> {
         if self.amount(r) < n {
             let what = match r {
-                Res::Gold => "gold",
-                Res::Elixir => "elixir",
+                Res::Gold => "grant money",
+                Res::Elixir => "coffee",
             };
             return Err(format!("Need {n} {what}"));
         }
@@ -572,13 +572,13 @@ impl Town {
             return Err(if self.count(kind) >= kind.max_count(MAX_LEVEL) {
                 "Max built".into()
             } else {
-                "Upgrade Town Hall".into()
+                "Upgrade the Hospital".into()
             });
         }
         let (r, n) = kind.cost(1);
         self.afford(r, n)?;
         if kind.build_secs(1) > 0 && self.builders_free() == 0 {
-            return Err("No free builder".into());
+            return Err("No free resident".into());
         }
         Ok(())
     }
@@ -638,12 +638,12 @@ impl Town {
         }
         let next = b.level + 1;
         if b.kind != Kind::TownHall && next > self.town_hall_level() {
-            return Err("Upgrade Town Hall first".into());
+            return Err("Upgrade the Hospital first".into());
         }
         let (r, n) = b.kind.cost(next);
         self.afford(r, n)?;
         if self.builders_free() == 0 {
-            return Err("No free builder".into());
+            return Err("No free resident".into());
         }
         Ok(())
     }

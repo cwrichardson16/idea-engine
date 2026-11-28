@@ -65,7 +65,7 @@ fn cannot_overlap_or_go_off_the_grid() {
 #[test]
 fn cannot_buy_without_resources() {
     let t = town_with(100, 100);
-    assert_eq!(t.can_buy(Kind::GoldMine).unwrap_err(), "Need 150 elixir");
+    assert_eq!(t.can_buy(Kind::GoldMine).unwrap_err(), "Need 150 coffee");
     let mut t = town_with(100, 100);
     assert!(t.place(Kind::GoldMine, 0, 0, 0).is_err());
     assert_eq!((t.gold, t.elixir), (100, 100));
@@ -77,7 +77,7 @@ fn town_hall_level_caps_how_many() {
     t.place(Kind::BuilderHut, 0, 0, 0).unwrap();
     t.place(Kind::GoldMine, 3, 0, 0).unwrap();
     t.settle(60 * S);
-    assert_eq!(t.can_buy(Kind::GoldMine).unwrap_err(), "Upgrade Town Hall");
+    assert_eq!(t.can_buy(Kind::GoldMine).unwrap_err(), "Upgrade the Hospital");
     assert_eq!(t.can_buy(Kind::BuilderHut).unwrap_err(), "Max built");
     assert_eq!(t.can_buy(Kind::TownHall).unwrap_err(), "Max built");
 }
@@ -146,14 +146,14 @@ fn storages_raise_the_cap_once_built() {
 fn one_builder_means_one_job_and_a_hut_adds_a_second() {
     let mut t = town_with(2000, 2000);
     t.place(Kind::GoldMine, 0, 0, 0).unwrap();
-    assert_eq!(t.can_buy(Kind::ElixirCollector).unwrap_err(), "No free builder");
+    assert_eq!(t.can_buy(Kind::ElixirCollector).unwrap_err(), "No free resident");
     // The hut is instant, needs no builder, and adds one.
     t.place(Kind::BuilderHut, 5, 0, 0).unwrap();
     assert_eq!((t.builders(), t.builders_free()), (2, 1));
     t.place(Kind::ElixirCollector, 8, 0, 0).unwrap();
     assert_eq!(t.builders_free(), 0);
     let th = t.buildings[0].id;
-    assert_eq!(t.can_upgrade(th).unwrap_err(), "No free builder");
+    assert_eq!(t.can_upgrade(th).unwrap_err(), "No free resident");
     assert_eq!(t.builders_busy(), 2);
 }
 
@@ -166,7 +166,7 @@ fn timers_finish_at_the_right_time_and_levels_matter() {
     t.settle(10 * S);
     assert_eq!(t.get(id).unwrap().level, 1);
     // A mine can't pass the Town Hall's level.
-    assert_eq!(t.can_upgrade(id).unwrap_err(), "Upgrade Town Hall first");
+    assert_eq!(t.can_upgrade(id).unwrap_err(), "Upgrade the Hospital first");
     let th = t.buildings[0].id;
     t.upgrade(th, 10 * S).unwrap();
     assert_eq!(t.gold, 2000);
@@ -301,11 +301,18 @@ fn gem_skip_rounds_up() {
 }
 
 #[test]
-fn knowledge_only_comes_from_reviews() {
+fn knowledge_only_comes_from_reviews_and_dev_needs_the_switch() {
     let mut sim = Sim::<Village>::new(Options::default()).unwrap();
     sim.post("away 3600");
     sim.run(100.0);
     assert_eq!(sim.world().resource::<Town>().knowledge, 0);
+    // Testers can't use the test review button: off until the hidden dev switch.
+    sim.post("review");
+    sim.post("dev rich");
+    sim.run(100.0);
+    assert_eq!(sim.world().resource::<Town>().knowledge, 0);
+    assert!(sim.world().resource::<Town>().gold < 5000);
+    sim.post("devmode on");
     sim.post("review");
     sim.post("review");
     sim.run(100.0);
@@ -567,7 +574,7 @@ fn new_kinds_go_at_the_end_so_old_saves_keep_their_buildings() {
 #[test]
 fn training_needs_a_barracks_costs_elixir_and_takes_time() {
     let mut t = town_with(1000, 1000);
-    assert_eq!(t.can_train(Troop::Fighter), Err("Build a Barracks".into()));
+    assert_eq!(t.can_train(Troop::Fighter), Err("Build a Lecture Hall".into()));
     let mut t2 = army_town();
     assert_eq!(t2.housing_cap(), 24);
     t2.train(Troop::Fighter, 0).unwrap();
@@ -583,7 +590,7 @@ fn training_needs_a_barracks_costs_elixir_and_takes_time() {
     assert!(t2.queue.is_empty());
     // Archers train at level 1; Brutes need barracks level 2.
     assert!(t2.can_train(Troop::Archer).is_ok());
-    assert_eq!(t2.can_train(Troop::Brute), Err("Needs Barracks level 2".into()));
+    assert_eq!(t2.can_train(Troop::Brute), Err("Needs Lecture Hall level 2".into()));
     t.gold = 0;
 }
 
@@ -605,7 +612,7 @@ fn housing_counts_queued_troops_and_cancelling_refunds_in_full() {
     }
     assert_eq!(t.housing_used(), 24);
     t.settle(400_000);
-    assert_eq!(t.can_train(Troop::Fighter), Err("Army camps full".into()));
+    assert_eq!(t.can_train(Troop::Fighter), Err("On-Call Rooms full".into()));
     let mut q = army_town();
     q.train(Troop::Fighter, 0).unwrap();
     q.train(Troop::Fighter, 0).unwrap();
@@ -675,7 +682,7 @@ fn a_raid_needs_troops() {
     sim.run(50.0);
     command(sim.world_mut(), "attack 0");
     assert!(!fight::active(sim.world()));
-    assert_eq!(sim.world().resource::<Ui>().toast, "Train some troops first");
+    assert_eq!(sim.world().resource::<Ui>().toast, "Train some staff first");
 }
 
 #[test]
