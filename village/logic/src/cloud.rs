@@ -46,6 +46,11 @@ pub struct Cloud {
     /// The last line read from `net`, so one answer is handled once.
     pub seen: String,
     pub status: String,
+    /// When the save this device loaded at Play was made (real ms); a cloud
+    /// save made later came from another device and wins.
+    pub local_wall: f64,
+    /// After a conflict: the next fetch takes the cloud save whatever its time.
+    pub take_cloud: bool,
 }
 
 const RETRY_MS: u64 = 15_000;
@@ -99,6 +104,7 @@ pub fn step(w: &mut World, net: &str) {
         w.resource_mut::<Cloud>().seen = net.to_string();
         answer(w, net, now);
     }
+    let raid = fight::active(w);
     let mut c = w.resource_mut::<Cloud>();
     if c.pending != 0 || now < c.wait_until {
         return;
@@ -114,6 +120,10 @@ pub fn step(w: &mut World, net: &str) {
             c.send("signin", "", &[&e, &p]);
         }
         Step::Fetch => {
+            // A cloud save is about to replace this one: never mid-raid.
+            if c.take_cloud && raid {
+                return;
+            }
             let t = c.token.clone();
             c.send("state", &t, &[]);
         }
@@ -189,16 +199,16 @@ fn answer(w: &mut World, line: &str, now: u64) {
             Step::Off => {}
         },
         "conflict" => {
-            // Another device saved first: its save is the newest truth.
-            let version: i64 = rest.first().and_then(|v| v.parse().ok()).unwrap_or(0);
-            let text = rest.get(1).unwrap_or(&"").to_string();
+            // Another device saved first: its save is the newest truth. Fetch
+            // it again (with any events) and take it; events counted here but
+            // not in that save are counted again from it (its last_event).
             let mut c = w.resource_mut::<Cloud>();
-            c.version = version;
             c.sending.clear();
             c.sending_events.clear();
-            c.status = "☁️ loaded your newer save".into();
-            drop(c);
-            adopt(w, &text);
+            c.applied.clear();
+            c.take_cloud = true;
+            c.step = Step::Fetch;
+            c.status = "☁️ loading your newer save".into();
         }
         _ => {}
     }
@@ -209,14 +219,22 @@ fn fetched(w: &mut World, rest: &[&str]) {
     let version: i64 = rest.first().and_then(|v| v.parse().ok()).unwrap_or(0);
     let events = rest.get(1).copied().unwrap_or("");
     let text = rest.get(2).copied().unwrap_or("");
+    let take = {
+        let c = w.resource::<Cloud>();
+        !text.is_empty() && (c.take_cloud || wall_of(text) > c.local_wall)
+    };
+    if take {
+        adopt(w, text);
+    }
     {
+        let now = now_ms(w);
         let mut c = w.resource_mut::<Cloud>();
         c.version = version;
         c.step = Step::Ready;
+        c.take_cloud = false;
         c.status = "☁️ saved".into();
-    }
-    if !text.is_empty() && newer(text, &w.resource::<Cloud>().dirty) {
-        adopt(w, text);
+        // Upload after this tick's save has captured what the events changed.
+        c.last_put = now;
     }
     for e in events.split(',').filter(|e| !e.is_empty()) {
         let mut p = e.split(':');
@@ -246,15 +264,8 @@ fn wall_of(text: &str) -> f64 {
     text.rsplit_once('@').and_then(|(_, w)| w.parse().ok()).unwrap_or(0.0)
 }
 
-fn newer(cloud: &str, local: &str) -> bool {
-    wall_of(cloud) > wall_of(local)
-}
-
-/// Loads a save from the cloud in place of this device's, unless a raid is on.
+/// Loads a save from the cloud in place of this device's.
 fn adopt(w: &mut World, text: &str) {
-    if fight::active(w) {
-        return;
-    }
     let wall = wall_ms(w);
     load(w, &format!("{wall} {text}"));
     w.resource_mut::<Cloud>().dirty = text.to_string();

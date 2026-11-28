@@ -930,8 +930,62 @@ fn a_cloud_conflict_loads_the_other_devices_save() {
     other.gold = 777;
     let text = format!("v2|5000|{}@1795850001000", other.encode());
     net(&mut sim, &format!("3\tconflict\t4\t{text}"));
+    // A conflict fetches the cloud save again and takes it, whatever its time.
+    assert!(ask(&sim).starts_with("4\tstate\tTOKEN"), "{:?}", ask(&sim));
+    net(&mut sim, &format!("4\tok\t4\t\t{text}"));
     assert_eq!(sim.world().resource::<Town>().gold, 777);
     assert_eq!(sim.world().resource::<village_logic::cloud::Cloud>().version, 4);
+}
+
+#[test]
+fn a_conflict_during_a_raid_waits_and_never_overwrites_the_newer_save() {
+    let mut sim = Sim::<Village>::new(Options::default()).unwrap();
+    net(&mut sim, "");
+    sim.post("cred p@players.invalid secret");
+    sim.post("load 1795850000000 ");
+    sim.run(100.0);
+    net(&mut sim, "1\tok\tTOKEN");
+    net(&mut sim, "2\tok\t0\t\t");
+    let mut t = army_town();
+    t.army = vec![8, 0, 0];
+    *sim.world_mut().resource_mut::<Town>() = t;
+    sim.run(6000.0);
+    assert!(ask(&sim).starts_with("3\tsave"));
+    sim.post("attack 0");
+    sim.run(100.0);
+    net(&mut sim, "3\tconflict\t9\tv2|1|x@1");
+    // Mid-raid: no fetch, and above all no save over version 9.
+    sim.run(20_000.0);
+    assert_eq!(ask(&sim), "");
+    assert!(village_logic::fight::active(sim.world()));
+    sim.post("surrender");
+    sim.run(200.0);
+    sim.post("home");
+    sim.run(200.0);
+    assert!(ask(&sim).starts_with("4\tstate"), "{:?}", ask(&sim));
+}
+
+#[test]
+fn anki_reviews_lost_to_a_conflict_are_counted_from_the_winning_save() {
+    let mut sim = Sim::<Village>::new(Options::default()).unwrap();
+    net(&mut sim, "");
+    sim.post("cred p@players.invalid secret");
+    sim.post("load 1795850000000 ");
+    sim.run(100.0);
+    net(&mut sim, "1\tok\tTOKEN");
+    let k = sim.world().resource::<Town>().knowledge;
+    net(&mut sim, "2\tok\t3\t5:50:20000\t");
+    assert_eq!(sim.world().resource::<Town>().knowledge, k + 10);
+    sim.run(6000.0);
+    assert!(ask(&sim).starts_with("3\tsave\tTOKEN\t3\t4\t5\t"), "{:?}", ask(&sim));
+    // Another device won with a save that never counted event 5.
+    let other = Town::new();
+    let text = format!("v2|5000|{}@1795850001000", other.encode());
+    net(&mut sim, &format!("3\tconflict\t4\t{text}"));
+    net(&mut sim, &format!("4\tok\t4\t5:50:20000\t{text}"));
+    assert_eq!(sim.world().resource::<Town>().knowledge, 10, "event 5 counted into the adopted save");
+    sim.run(6000.0);
+    assert!(ask(&sim).starts_with("5\tsave\tTOKEN\t4\t4\t5\t"), "{:?}", ask(&sim));
 }
 
 #[test]

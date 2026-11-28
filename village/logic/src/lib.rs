@@ -434,6 +434,7 @@ pub fn load(w: &mut World, text: &str) {
     let wall_now: f64 = parts.next().and_then(|n| n.parse().ok()).unwrap_or(0.0);
     let kept = parts.next().unwrap_or("").trim();
     let Some((body, wall_then)) = kept.rsplit_once('@') else { return };
+    w.resource_mut::<cloud::Cloud>().local_wall = wall_then.parse().unwrap_or(0.0);
     let mut f = body.splitn(3, '|');
     // v1 saves (no army) still load; Town::decode reads both.
     let (Some("v1" | "v2"), Some(then), Some(town)) = (f.next(), f.next(), f.next()) else {
