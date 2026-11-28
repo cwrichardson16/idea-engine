@@ -61,3 +61,7 @@ See SPEC.md "Choices made" and V1.md §4.
 - DONE a72df70 (pushed): steps 1-4. Skeptic caught drag lag + camera framing; fixed (35° lens, 60 m, grab-point drag incl. one-tick drags). 38 tests. Chrome: diamond view, drag, zoom, place shows grid / hides after, barracks placed.
 - Known: mines/storages/army camp are still plain boxes (no outlines) until the KayKit swap after Phase B. Dev hot-swap overlay logged as engine feedback (not sent).
 - Next: Phase A step 2 army Chrome check (barracks now building), test web, Phase A verifier, then Phase B.
+
+## Direction decided (2026-11-28) — see DESIGN-DIRECTION.md "Conner's picks"
+Med school theme; vinyl-toy + chunky characters art; Clash-like core + all 5 study mechanics + standard engagement features. Before public: new name, retuned numbers, themed names, no red-cross emblem.
+Build order: Phase B battles (numbers retuned off Clash's) → study loop (Knowledge, daily chest, streaks, power hours) → playtest → multiplayer/pass/clans → art.

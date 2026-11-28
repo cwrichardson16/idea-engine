@@ -1,9 +1,16 @@
 # Design direction (v2 after 2 reviewers, 2026-11-28)
 
-## Conner's picks (2026-11-28)
-- **Art style:** chunky toy cartoon (concept 1) with claymation's warmth (soft warm light, cozy) but NO clay texture. Concept images in his Canva (round 1: MAHcL7EmmMA chunky, MAHcLwLpxGU clay; round 2: MAHcL5HBUog warm diorama, MAHcL3yQVhQ vinyl-toy, MAHcL0TrNOg characters).
-- **Gameplay:** keep it very Clash-like; backlog-siege idea dropped (he found it confusing). Study plugs in as: free gem-like currency from reviews, daily study chest + streaks, study season pass (candidates; awaiting his confirm). Gems purchasable.
-- Theme: med school leaning, not yet confirmed.
+## Conner's picks (2026-11-28) — DECIDED
+- **Theme:** med school (confirmed).
+- **Art style:** a mix of round-2 concepts 2 and 3: vinyl-toy rounded buildings (MAHcL3yQVhQ) + the chunky big-head characters (MAHcL0TrNOg), warm soft light, no clay texture. NO red-cross-on-white emblem (Geneva-protected): use a green cross, heart-pulse or caduceus.
+- **Gameplay:** very Clash-like core; backlog siege dropped. ALL five study mechanics are in:
+  1. Studying earns Knowledge, a free gem-like currency (finish timers, speed training); gems also purchasable.
+  2. Daily study chest + streaks (day-7 chest is big).
+  3. Study pass: reviews earn pass points; free + premium (~$5/mo) tracks.
+  4. Power hours: a study session gives 1 h of 2x production/training.
+  5. Study-only hero: levels only from reviews, never purchasable.
+- **Engagement/monetization features in:** 2 builders (3rd builder for sale), storage caps, shields + revenge, daily rewards/streaks/weekend events, starter pack, clan wars + leaderboards, near-miss stars. No paid random loot boxes.
+- Rewards come from review counts/time, never self-graded accuracy.
 
 ## Changes from the review (these override the sections below)
 - **Study is a boost, never a gate.** Raids always work on a base energy. Studying adds "rested" bonuses: double loot, Knowledge-only unlocks, streak shields. Knowledge and energy are never sold.
