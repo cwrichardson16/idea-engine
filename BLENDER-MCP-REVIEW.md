@@ -109,3 +109,9 @@ If you install ahujasid's MCP, take these precautions:
 - claude.com/connectors/blender
 - NVD/OSV/SentinelOne entries for CVE-2026-10688, -10661, -10662 (via search results only, UNVERIFIED)
 - blender.org/lab/mcp-server returned HTTP 403, not read
+
+## Installed 2026-11-28 (owner approved)
+- Server: `uvx mcp-for-blender==2.3.4` (pinned), Claude Code local scope for this project only (in ~/.claude.json, not the repo), env DISABLE_TELEMETRY=true, BLENDER_MCP_SAFE_MODE=1, BLENDERMCP_NO_UPDATE_CHECK=1. `claude mcp get blender`: Connected.
+- Add-on: blender_mcp.py in ~/Library/Application Support/Blender/5.3/scripts/addons, enabled; telemetry_consent False, allow_remote_connections False (saved prefs); auto-start server False in the startup file. Port 9876 is closed until someone clicks "Start MCP Server" in Blender's sidebar for an art session.
+- Primary art pipeline stays headless scripts: `blender -b -P tools/<script>.py`.
+- Remove: `claude mcp remove blender -s local` and disable the add-on in Blender preferences.

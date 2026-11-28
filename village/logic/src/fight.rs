@@ -30,9 +30,10 @@ pub enum Act {
     Dead,
 }
 
-/// The Spearman's model and its scale (the KayKit Knight is about 2.4 m tall).
+/// The Spearman's model and its scale (the KayKit Knight is about 1 m tall at
+/// scale 1, chunky and big-headed; 0.9 reads at the steep village camera).
 pub const SPEARMAN_MODEL: &str = "knight.model";
-const SPEARMAN_SCALE: f32 = 0.42;
+const SPEARMAN_SCALE: f32 = 0.9;
 
 fn clip(act: Act) -> Animation {
     match act {
