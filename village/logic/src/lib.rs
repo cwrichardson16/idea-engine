@@ -209,6 +209,8 @@ pub struct Hud {
     pub ask: String,
     /// Cloud save status for the player.
     pub cloud: String,
+    /// This account's one-time restore code, once asked for.
+    pub restore_code: String,
     pub gold: u32,
     pub gold_cap: u32,
     pub elixir: u32,
@@ -497,6 +499,12 @@ pub fn command(w: &mut World, cmd: &str) {
     // `cred <email> <password>`: two words, so read before the one-word parse.
     if let Some(rest) = cmd.strip_prefix("cred ") {
         return cloud::set_cred(w, rest);
+    }
+    if cmd == "restorecode" {
+        return cloud::ask_code(w);
+    }
+    if let Some(code) = cmd.strip_prefix("restore ") {
+        return cloud::claim(w, code);
     }
     let now = now_ms(w);
     let mut words = cmd.split_whitespace();
@@ -1165,6 +1173,7 @@ pub fn hud(w: &World, now: u64, place_reason: String) -> Hud {
         knowledge: town.knowledge,
         ask: w.resource::<cloud::Cloud>().ask.clone(),
         cloud: w.resource::<cloud::Cloud>().status.clone(),
+        restore_code: w.resource::<cloud::Cloud>().code.clone(),
         study_today: if town.study.day == today { town.study.reviews } else { 0 },
         study_next: economy::CHEST_TIERS
             .iter()

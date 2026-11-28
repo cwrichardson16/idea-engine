@@ -1029,3 +1029,51 @@ fn signing_in_again_after_the_token_expires_keeps_newer_local_play() {
     sim.run(6000.0);
     assert!(ask(&sim).starts_with("7\tsave\tTOKEN2\t1\t"), "{:?}", ask(&sim));
 }
+
+#[test]
+fn a_restore_code_moves_the_village_to_this_device() {
+    let mut sim = Sim::<Village>::new(Options::default()).unwrap();
+    net(&mut sim, "");
+    sim.post("cred new@players.invalid pw");
+    sim.post("load 1795850000000 ");
+    sim.run(100.0);
+    net(&mut sim, "1\tok\tTOKEN");
+    net(&mut sim, "2\tok\t0\t\t");
+    // Bad codes never leave the device.
+    sim.post("restore AB");
+    sim.run(100.0);
+    assert_eq!(ask(&sim), "");
+    sim.post("restore abcd-2345");
+    sim.run(100.0);
+    assert_eq!(ask(&sim), "3\tclaim\t\tABCD2345");
+    net(&mut sim, "3\terror\tno account has that code");
+    assert!(sim.world().resource::<Ui>().toast.contains("no account has that code"));
+    sim.post("restore ABCD2345");
+    sim.run(100.0);
+    net(&mut sim, "4\tok\told@players.invalid\tNEW/pw=");
+    assert_eq!(ask(&sim), "5\tsignin\t\told@players.invalid\tNEW/pw=");
+    net(&mut sim, "5\tok\tTOKEN2");
+    // The other device's village (older than this one) still wins.
+    let mut other = Town::new();
+    other.gold = 888;
+    let text = format!("v2|5000|{}@1000", other.encode());
+    net(&mut sim, &format!("6\tok\t7\t\t{text}"));
+    assert_eq!(sim.world().resource::<Town>().gold, 888);
+    assert_eq!(sim.world().resource::<village_logic::cloud::Cloud>().version, 7);
+}
+
+#[test]
+fn the_restore_code_shows_once_made() {
+    let mut sim = Sim::<Village>::new(Options::default()).unwrap();
+    net(&mut sim, "");
+    sim.post("cred p@players.invalid pw");
+    sim.post("load 1795850000000 ");
+    sim.run(100.0);
+    sim.post("restorecode");
+    net(&mut sim, "1\tok\tTOKEN");
+    assert_eq!(ask(&sim), "2\tmkcode\tTOKEN");
+    net(&mut sim, "2\tok\tQRST6789");
+    assert_eq!(sim.world().resource::<village_logic::cloud::Cloud>().code, "QRST6789");
+    assert_eq!(hud_after(&sim).restore_code, "QRST6789");
+    assert!(ask(&sim).starts_with("3\tstate"));
+}

@@ -54,6 +54,13 @@ pub struct Cloud {
     /// Has this device fetched once since Play? After that, only a higher
     /// cloud version (another device) replaces the village here.
     pub synced: bool,
+    /// The kind of the request out now (join, signin, state, save, mkcode, claim).
+    pub pending_kind: String,
+    /// Restore: this account's one-time code once made, a code typed here to
+    /// claim another device's village, and a code asked for.
+    pub code: String,
+    pub claim: String,
+    pub want_code: bool,
 }
 
 const RETRY_MS: u64 = 15_000;
@@ -63,6 +70,7 @@ impl Cloud {
     fn send(&mut self, kind: &str, token: &str, args: &[&str]) {
         self.next_id += 1;
         self.pending = self.next_id;
+        self.pending_kind = kind.to_string();
         let mut ask = format!("{}\t{kind}\t{token}", self.pending);
         for a in args {
             ask.push('\t');
@@ -109,7 +117,23 @@ pub fn step(w: &mut World, net: &str) {
     }
     let raid = fight::active(w);
     let mut c = w.resource_mut::<Cloud>();
-    if c.pending != 0 || now < c.wait_until {
+    if c.pending != 0 {
+        return;
+    }
+    // Restore requests go ahead of the save loop (and of any backoff). A claim
+    // replaces the village, so never mid-raid.
+    if !c.claim.is_empty() && !raid {
+        let code = std::mem::take(&mut c.claim);
+        c.send("claim", "", &[&code]);
+        return;
+    }
+    if c.want_code && !c.token.is_empty() {
+        c.want_code = false;
+        let t = c.token.clone();
+        c.send("mkcode", &t, &[]);
+        return;
+    }
+    if now < c.wait_until {
         return;
     }
     match c.step {
@@ -150,17 +174,20 @@ fn answer(w: &mut World, line: &str, now: u64) {
     let id: u64 = f.next().and_then(|n| n.parse().ok()).unwrap_or(0);
     let what = f.next().unwrap_or("");
     let rest: Vec<&str> = f.collect();
-    let step = {
+    let (step, kind) = {
         let c = w.resource::<Cloud>();
         if id == 0 || id != c.pending {
             return;
         }
-        c.step
+        (c.step, c.pending_kind.clone())
     };
     {
         let mut c = w.resource_mut::<Cloud>();
         c.pending = 0;
         c.ask.clear();
+    }
+    if kind == "mkcode" || kind == "claim" {
+        return restore_answer(w, &kind, what, &rest);
     }
     match what {
         "offline" | "error" => {
@@ -214,6 +241,72 @@ fn answer(w: &mut World, line: &str, now: u64) {
             c.status = "☁️ loading your newer save".into();
         }
         _ => {}
+    }
+}
+
+/// `restorecode`: ask the server for this account's one-time code.
+pub fn ask_code(w: &mut World) {
+    let mut c = w.resource_mut::<Cloud>();
+    c.want_code = true;
+    c.code.clear();
+    c.status = "☁️ making your restore code".into();
+}
+
+/// `restore <code>`: take over the village another device saved.
+pub fn claim(w: &mut World, code: &str) {
+    let code: String = code.chars().filter(|c| c.is_ascii_alphanumeric()).collect::<String>().to_uppercase();
+    if code.len() != 8 {
+        return toast(w, "A restore code has 8 letters and numbers");
+    }
+    let mut c = w.resource_mut::<Cloud>();
+    c.claim = code;
+    c.status = "☁️ checking the code".into();
+}
+
+fn restore_answer(w: &mut World, kind: &str, what: &str, rest: &[&str]) {
+    match (kind, what) {
+        ("mkcode", "ok") => {
+            let mut c = w.resource_mut::<Cloud>();
+            c.code = rest.first().unwrap_or(&"").to_string();
+            c.status = "☁️ saved".into();
+        }
+        ("mkcode", "auth") => {
+            // The sign-in ran out: sign in again, then make the code.
+            let mut c = w.resource_mut::<Cloud>();
+            c.token.clear();
+            c.step = Step::SignIn;
+            c.want_code = true;
+        }
+        ("claim", "ok") => {
+            let (Some(e), Some(p)) = (rest.first(), rest.get(1)) else { return };
+            let (e, p) = (e.to_string(), p.to_string());
+            {
+                let mut c = w.resource_mut::<Cloud>();
+                c.email = e.clone();
+                c.password = p.clone();
+                c.token.clear();
+                c.step = Step::SignIn;
+                // The claimed village replaces this one, whatever its time.
+                c.take_cloud = true;
+                c.synced = false;
+                c.version = 0;
+                c.applied.clear();
+                c.sending.clear();
+                c.sending_events.clear();
+                c.wait_until = 0;
+                c.code.clear();
+                c.status = "☁️ loading your village".into();
+            }
+            w.emit(format!("cred {e} {p}"));
+        }
+        (_, "offline") => {
+            w.resource_mut::<Cloud>().status = "📴 offline: try again when connected".into();
+        }
+        _ => {
+            let why = rest.first().copied().unwrap_or("try again");
+            w.resource_mut::<Cloud>().status = "☁️ saved".into();
+            toast(w, format!("Restore: {why}"));
+        }
     }
 }
 

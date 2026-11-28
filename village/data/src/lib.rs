@@ -33,6 +33,8 @@ pub fn request(ask: &str) -> Option<(u64, String, String, Json)> {
             json!({ "email": args.first()?, "password": args.get(1)? }),
         ),
         "state" => ("/rest/v1/rpc/get_state".to_string(), json!({})),
+        "mkcode" => ("/functions/v1/restore".to_string(), json!({ "action": "make" })),
+        "claim" => ("/functions/v1/restore".to_string(), json!({ "action": "claim", "code": args.first()? })),
         "save" => {
             let base: i64 = args.first()?.parse().ok()?;
             let contract: i64 = args.get(1)?.parse().ok()?;
@@ -69,10 +71,18 @@ pub fn normalize(id: u64, kind: &str, status: u16, body: &[u8]) -> String {
             return format!("{id}\tauth");
         }
         let why = j["error"].as_str().or(j["msg"].as_str()).or(j["message"].as_str()).unwrap_or("error");
+        if kind == "claim" || kind == "mkcode" {
+            // Shown to the player as is ("no account has that code").
+            return format!("{id}\terror\t{}", clean(why));
+        }
         return format!("{id}\terror\tHTTP {status}: {}", clean(why));
     }
     match kind {
-        "join" => match (j["email"].as_str(), j["password"].as_str()) {
+        "mkcode" => match j["code"].as_str() {
+            Some(c) => format!("{id}\tok\t{}", clean(c)),
+            None => format!("{id}\terror\tno code"),
+        },
+        "join" | "claim" => match (j["email"].as_str(), j["password"].as_str()) {
             (Some(e), Some(p)) => format!("{id}\tok\t{}\t{}", clean(e), clean(p)),
             _ => format!("{id}\terror\tmalformed join"),
         },
@@ -188,5 +198,10 @@ mod tests {
         assert_eq!(normalize(4, "signin", 400, br#"{"error":"invalid_grant"}"#), "4\tauth");
         assert_eq!(normalize(4, "state", 401, b""), "4\tauth");
         assert_eq!(normalize(5, "join", 200, br#"{"email":"a@b","password":"p"}"#), "5\tok\ta@b\tp");
+        assert_eq!(normalize(6, "mkcode", 200, br#"{"code":"ABCD2345"}"#), "6\tok\tABCD2345");
+        assert_eq!(normalize(7, "claim", 404, br#"{"error":"no account has that code"}"#), "7\terror\tno account has that code");
+        assert_eq!(normalize(7, "claim", 200, br#"{"email":"a@b","password":"q/+="}"#), "7\tok\ta@b\tq/+=");
+        let (_, path, _, body) = request("8\tclaim\t\tABCD2345").unwrap();
+        assert_eq!((path.as_str(), body["code"].as_str()), ("/functions/v1/restore", Some("ABCD2345")));
     }
 }
