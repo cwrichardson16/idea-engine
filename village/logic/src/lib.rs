@@ -158,6 +158,8 @@ pub struct ShopRow {
     pub max: u32,
     /// Why it can't be bought now; empty when it can.
     pub reason: String,
+    /// `secs` for people ("2m 30s").
+    pub time: String,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Data)]
@@ -177,6 +179,9 @@ pub struct Selected {
     pub upgrade_reason: String,
     pub skip_gems: u32,
     pub skip_knowledge: u32,
+    /// `left` and `upgrade_secs` for people.
+    pub left_time: String,
+    pub upgrade_time: String,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Data)]
@@ -189,6 +194,8 @@ pub struct TrainRow {
     pub count: u32,
     /// Why it can't be trained now; empty when it can.
     pub reason: String,
+    /// `secs` for people.
+    pub time: String,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Data)]
@@ -266,6 +273,24 @@ pub struct Hud {
     pub result_gold: u32,
     pub result_elixir: u32,
     pub result_used: u32,
+    /// `power_secs`, `training_left` and `raid_secs` for people.
+    pub power_time: String,
+    pub training_time: String,
+    pub raid_time: String,
+}
+
+/// A duration for people: "45s", "2m 30s" (under 10 minutes), "12m",
+/// "1h 20m", "2d 3h". Timers now run hours, so raw seconds won't do.
+pub fn duration(secs: u64) -> String {
+    let (d, h, m, s) = (secs / 86_400, secs / 3600 % 24, secs / 60 % 60, secs % 60);
+    let pair = |a: u64, ua: &str, b: u64, ub: &str| if b == 0 { format!("{a}{ua}") } else { format!("{a}{ua} {b}{ub}") };
+    match secs {
+        0..60 => format!("{s}s"),
+        60..600 => pair(m, "m", s, "s"),
+        600..3600 => format!("{m}m"),
+        3600..86_400 => pair(h, "h", m, "m"),
+        _ => pair(d, "d", h, "h"),
+    }
 }
 
 pub const HZ: u32 = 30;
@@ -1174,6 +1199,7 @@ pub fn hud(w: &World, now: u64, place_reason: String) -> Hud {
                 owned: town.count(k) as u32,
                 max: k.max_count(th) as u32,
                 reason: town.can_buy(k).err().unwrap_or_default(),
+                time: duration(k.build_secs(1)),
             }
         })
         .collect();
@@ -1183,16 +1209,16 @@ pub fn hud(w: &World, now: u64, place_reason: String) -> Hud {
             let next = b.level + 1;
             let (ur, uc) = b.kind.cost(next);
             let maxed = b.level >= b.kind.max_level();
+            let left = if b.busy() { b.done_at.saturating_sub(now).div_ceil(1000) } else { 0 };
+            let upgrade_secs = if maxed { 0 } else { b.kind.build_secs(next) };
             Selected {
+                left_time: duration(left),
+                upgrade_time: duration(upgrade_secs),
                 id: b.id,
                 name: b.kind.name().into(),
                 level: u32::from(b.level),
                 max_level: u32::from(b.kind.max_level()),
-                left: if b.busy() {
-                    b.done_at.saturating_sub(now).div_ceil(1000) as u32
-                } else {
-                    0
-                },
+                left: left as u32,
                 waiting: b.waiting_in(now, town.power()),
                 res: b
                     .kind
@@ -1201,7 +1227,7 @@ pub fn hud(w: &World, now: u64, place_reason: String) -> Hud {
                     .unwrap_or_default(),
                 upgrade_cost: if maxed { 0 } else { uc },
                 upgrade_res: res_name(ur),
-                upgrade_secs: if maxed { 0 } else { b.kind.build_secs(next) as u32 },
+                upgrade_secs: upgrade_secs as u32,
                 upgrade_reason: town.can_upgrade(b.id).err().unwrap_or_default(),
                 skip_gems: town.skip_cost(b.id, now, Pay::Gems).unwrap_or(0),
                 skip_knowledge: town.skip_cost(b.id, now, Pay::Knowledge).unwrap_or(0),
@@ -1246,6 +1272,7 @@ pub fn hud(w: &World, now: u64, place_reason: String) -> Hud {
                 housing: t.housing(),
                 count: town.trained(t),
                 reason: town.can_train(t).err().unwrap_or_default(),
+                time: duration(t.train_secs()),
             })
             .collect(),
         housing_used: town.housing_used(),
@@ -1253,6 +1280,8 @@ pub fn hud(w: &World, now: u64, place_reason: String) -> Hud {
         queue: town.queue.iter().map(|t| t.name().to_string()).collect(),
         training_left: town.training_left(now) as u32,
         training: town.queue.first().map(|t| t.name().to_string()).unwrap_or_default(),
+        training_time: duration(town.training_left(now)),
+        power_time: duration(town.study.power_until.saturating_sub(now) / 1000),
         campaign: battle::CAMPS
             .iter()
             .enumerate()
@@ -1277,6 +1306,7 @@ fn raid_hud(w: &World) -> Hud {
         raiding: true,
         raid_camp: battle::CAMPS[(b.camp as usize).min(battle::CAMPS.len() - 1)].0.into(),
         raid_secs: b.ticks_left().div_ceil(battle::TPS),
+        raid_time: duration(u64::from(b.ticks_left().div_ceil(battle::TPS))),
         raid_percent: b.percent(),
         raid_stars: u32::from(b.stars()),
         raid_gold: b.gold,

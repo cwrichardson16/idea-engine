@@ -1133,3 +1133,23 @@ fn a_bug_report_goes_up_with_the_save_and_waits_for_sign_in() {
     net(&mut sim, "3\tok");
     assert_eq!(sim.world().resource::<Ui>().toast, "Thanks! Bug report sent");
 }
+
+#[test]
+fn durations_read_as_people_say_them() {
+    for (secs, text) in [
+        (0, "0s"), (45, "45s"), (60, "1m"), (150, "2m 30s"), (599, "9m 59s"), (720, "12m"), (3599, "59m"),
+        (3600, "1h"), (4800, "1h 20m"), (86_399, "23h 59m"), (86_400, "1d"), (183_600, "2d 3h"),
+    ] {
+        assert_eq!(duration(secs), text, "{secs}");
+    }
+    // The HUD shows them: a Keep upgrade is hours, not raw seconds.
+    let mut sim = Sim::<Village>::new(Options::default()).unwrap();
+    sim.run(50.0);
+    let th = sim.world().resource::<Town>().buildings[0].id;
+    sim.world_mut().resource_mut::<Ui>().selected = th;
+    sim.world_mut().resource_mut::<Town>().buildings[0].level = 6;
+    let h = hud_after(&sim);
+    assert_eq!(h.selected.upgrade_time, duration(Kind::TownHall.build_secs(7)));
+    assert!(h.selected.upgrade_time.contains('h'), "{}", h.selected.upgrade_time);
+    assert_eq!(h.shop.iter().find(|r| r.key == "goldmine").unwrap().time, "10s");
+}
