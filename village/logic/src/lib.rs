@@ -685,6 +685,13 @@ fn taps(w: &mut World, input: &Input) {
         let hit = tile_at(view, e.position, &w.resource::<CamView>());
         if let Some((x, z)) = hit {
             if fight::active(w) {
+                // The second click of a double-click on a camp in the raid list
+                // lands on the battlefield: a raid ignores taps for its first
+                // third of a second, so it never costs a troop.
+                let fresh = w.resource::<fight::Fight>().battle.as_ref().is_some_and(|b| b.tick < 10);
+                if fresh {
+                    continue;
+                }
                 if let Err(why) = fight::deploy_at(w, x, z) {
                     toast(w, why);
                 }

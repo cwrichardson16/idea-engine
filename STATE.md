@@ -70,3 +70,20 @@ Build order: Phase B battles (numbers retuned off Clash's) → study loop (Knowl
 Phase B done end to end: train → Attack → pick 1 of 4 camps → deploy outside red border → fight → result (stars, %, loot) → home with loot, troops used. Numbers retuned off Clash. Camps stored in the same layout text as a player village (multiplayer-ready). test-rust + contract [] + test web + Chrome loop with screenshots + skeptic + verifier + push.
 Multiplayer later on a free Supabase test project (ask Conner before creating it).
 Steps: (1) DONE retune (economy.rs, SPEC-2, tests; battle stats in SPEC-2 table still to apply in battle.rs: Fighter 55hp 9dps 1.5t/s r0.7, Archer 24/8/1.5/4.0, Brute 360/12/0.9/0.7; cannon r7.5 dmg 10/14/18 per 0.9s; tower r8.5 dmg 5/7/9 per 0.45s; battle 150 s = 4500 ticks); (2) DONE battle.rs + tests/battle.rs (10 pass; camps Free Clinic/Urgent Care/Community Hospital/Mega Medical Center; plans_from_town; draw units with small per-index offset to avoid blob); (3) DONE campaign memory (Town.stars/looted, record_raid caps loot, save sections 4-5, SaveContract 3); (4) DONE fight.rs (commands, deploy on tap, step, result) + 5 sim tests; (5) DONE in code (camp buildings ids 1000+, rubble, red border planes, troop capsules) — needs Chrome look; (6) DONE raid HUD + dev army + raid page test; (7) DONE 12 battle + 43 sim tests; (8) DONE Chrome loop 2026-11-28: dev army 24, raid Urgent Care, red-border refusal toast, 3 stars 100%, loot capped (gold 1750->2000, elixir 1050->1700), home: army 10/24, stars 3/3, reload keeps all. Screens ~/var/folders/_s/dk7yz8xd5fg6j8rbsq5_1rj40000gn/T/claude-chrome-screenshots-OsU5ko/screenshot-17958508*. Troops were tiny dots: doubled size (not re-checked); (9) skeptic VERDICT SHIP (no blocking); test web 4/4 pass; verifier pending; (10) push.
+
+## Conner approvals (2026-11-28, for the overnight run)
+- OK: create ONE free-tier Supabase project for testing (accounts, cloud save, raids, playtest stats). $0 only.
+- OK: deploy a private/unlisted test link on a free host (Vercel or Cloudflare Pages). $0 only.
+- OK: free image generation in Canva/Figma. No paid API costs, ever.
+- Mac stays awake by itself while Claude Code works.
+- Verifier (Phase B): PASS on all 8 checks; bug fixed: double-click on a camp dropped a troop (taps ignored first 10 ticks). Troops look like plain dots (art phase).
+
+## NEXT GOAL (overnight): ready for testers — see DESIGN-DIRECTION.md picks
+1. med-school reskin of names + emblem (no red cross), dev buttons behind a flag
+2. study loop: Knowledge from reviews, daily chest + streaks, power hours (fake review button first)
+3. tutorial + phone layout
+4. Supabase (free project): auth, cloud save, playtest stats table
+5. multiplayer raids: opponent near level, raid snapshot (plans_from_town), shields, revenge, server replay check
+6. Anki add-on sending review counts to Supabase
+7. private test link on a free host
+Each step: tests + Chrome check + reviewer + commit/push on the feature branch. Never main.

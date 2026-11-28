@@ -113,19 +113,19 @@ Camp building hit points: Town Hall 400, defenses 300, storages 250, mines/colle
 - **Picking:** keep our own ray (`tile_at`) and make it use the moving camera.
 
 ## Feature checklist
-- [ ] **G1 Camera**
+- [x] **G1 Camera**
   - Check: drag pans and wheel zooms, both kept inside the bounds; a tap still selects; picking stays right after pan and zoom.
   - Proof: a test of `tile_at` with an offset camera; Chrome screenshots zoomed in and out.
-- [ ] **G2 Look**
+- [x] **G2 Look**
   - Check: each building kind has a distinct shape; trees and rocks are present.
   - Proof: a Chrome screenshot.
-- [ ] **G3 Army buildings**
+- [x] **G3 Army buildings**
   - Check: barracks and army camp in the shop with TH caps; the training queue costs elixir, takes time, keeps to the housing limit, and finishes while away; troop unlocks follow barracks level.
   - Proof: tests, plus a Chrome screenshot of the training panel.
-- [ ] **G4 Defenses at home**
+- [x] **G4 Defenses at home**
   - Check: cannon and archer tower can be built and upgraded.
   - Proof: tests and a screenshot.
-- [ ] **G5 Battle sim**
+- [x] **G5 Battle sim**
   - Check:
     - a fighter destroys an undefended camp;
     - a cannon kills fighters in range and ignores those out of range;
@@ -138,12 +138,12 @@ Camp building hit points: Town Hall 400, defenses 300, storages 250, mines/colle
     - a battle always ends within 5400 ticks (no wall-clock timing test);
     - the battle clock ignores `away`.
   - Proof: `tests/battle.rs`.
-- [ ] **G6 Battle UI**
+- [x] **G6 Battle UI**
   - Check: Attack shows the campaign map with stars; in battle: troop picker with counts, timer, %, stars so far, Surrender; deploying inside the red border is refused with a reason; the result screen leads home.
     - every published HUD number is finite and ≥ 0;
     - "skip gems" during a battle changes nothing.
   - Proof: Chrome screenshots plus tests.
-- [ ] **G7 Save v2**
+- [x] **G7 Save v2**
   - Check: army, queue and stars round-trip; a v1 save loads; damaged saves are rejected.
   - Proof: tests and a Chrome reload.
 
