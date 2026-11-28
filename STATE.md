@@ -65,3 +65,8 @@ See SPEC.md "Choices made" and V1.md §4.
 ## Direction decided (2026-11-28) — see DESIGN-DIRECTION.md "Conner's picks"
 Med school theme; vinyl-toy + chunky characters art; Clash-like core + all 5 study mechanics + standard engagement features. Before public: new name, retuned numbers, themed names, no red-cross emblem.
 Build order: Phase B battles (numbers retuned off Clash's) → study loop (Knowledge, daily chest, streaks, power hours) → playtest → multiplayer/pass/clans → art.
+
+## SESSION GOAL (set 2026-11-28, Conner: "set goal ... loop until you are there")
+Phase B done end to end: train → Attack → pick 1 of 4 camps → deploy outside red border → fight → result (stars, %, loot) → home with loot, troops used. Numbers retuned off Clash. Camps stored in the same layout text as a player village (multiplayer-ready). test-rust + contract [] + test web + Chrome loop with screenshots + skeptic + verifier + push.
+Multiplayer later on a free Supabase test project (ask Conner before creating it).
+Steps: (1) retune numbers in economy.rs + SPEC-2; (2) battle.rs from scratchpad, camps as layout text; (3) Town campaign memory (stars, looted masks) in save; (4) Fight resource + commands (attack/deploy/surrender/home); (5) battle drawing; (6) HUD: campaign, battle HUD, result; (7) tests/battle.rs G5; (8) Chrome loop; (9) reviews; (10) push.
