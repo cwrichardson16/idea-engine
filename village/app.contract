@@ -52,6 +52,8 @@ shape Hud
   elixir_cap: number
   gems: number
   knowledge: number
+  ask: string
+  cloud: string
   study_today: number
   study_next: number
   streak: number
@@ -102,14 +104,21 @@ component Village
   state village = "" persist
   // Dev tools stay hidden for testers: 5 taps on the Hospital badge turn them on.
   state devMode = false persist
+  // This device's cloud player account (made by the join function; never shown).
+  state cred = "" persist
   state devTaps = 0
   resource hud = exactSurface("world") as shape Hud
+  // The cloud call the world asked for (village/data), answered into the world's `net`.
+  resource reply = supa(hud.ask) as shape string
   resource time = exactTime() as shape Time
 
   action play
     playing = true
-    postMessage(`load ${time.epochAtZero + performanceNow()} ${village}`, "world")
+    // The account first, so the world never makes a second one for this device.
+    if cred != ""
+      postMessage(`cred ${cred}`, "world")
     postMessage(`tz ${time.utcOffset}`, "world")
+    postMessage(`load ${time.epochAtZero + performanceNow()} ${village}`, "world")
     if devMode
       postMessage("devmode on", "world")
 
@@ -125,6 +134,10 @@ component Village
   action heard(t: string)
     if t.startsWith("save ")
       village = `${t.slice(5)}@${time.epochAtZero + performanceNow()}`
+    if t.startsWith("cred ")
+      cred = t.slice(5)
+    if t.startsWith("kept ")
+      village = t.slice(5)
 
   action toggleShop
     shopOpen = not shopOpen
@@ -155,7 +168,7 @@ component Village
   view
     main width="100%" height="100%" background-color="#1d2a1f" color="#ffffff" font-weight=800 text-shadow="0 2px 0 #000000aa"
       if playing
-        canvas surface=world(seed=7, restart=again, epoch=time.epochAtZero) message=heard testId="world" width="100%" height="100%" position="relative"
+        canvas surface=world(seed=7, restart=again, epoch=time.epochAtZero, net=reply) message=heard testId="world" width="100%" height="100%" position="relative"
           // Top bar: resources and builders.
           row testId="hud-top" position="absolute" top=16 left=16 right=16 gap=10 align-items="center" justify-content="space-between"
             row gap=10 flex-wrap="wrap"
@@ -185,6 +198,8 @@ component Village
               text `🔥 ${hud.streak} ${hud.streak == 1 ? "day" : "days"}` testId="study-streak"
             if hud.power_secs > 0
               text `⚡ ${ceil(hud.power_secs / 60)} min` testId="study-power" color="#ffe082"
+          if hud.cloud != ""
+            text hud.cloud testId="cloud" position="absolute" bottom=96 right=16 font-size=12 padding=6 border-radius=8 background-color="#00000066"
           if hud.toast != ""
             text hud.toast testId="toast" aria-live="polite" position="absolute" top=80 left=16 padding=12 border-radius=10 background-color="#000000cc" box-shadow="inset 0 -4px 0 #00000055, 0 2px 0 #00000088" border-width=2 border-style="solid" border-color="#00000066"
           // Placing: a ghost follows taps; confirm or cancel.

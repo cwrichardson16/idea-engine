@@ -5,6 +5,7 @@
 pub mod battle;
 pub mod economy;
 pub mod fight;
+pub mod cloud;
 
 /// Dev shortcuts (`dev …`, the test `review`) only work after the HUD's hidden
 /// 5-tap switch sends `devmode on`. Not saved: off on every fresh start.
@@ -48,6 +49,9 @@ pub struct Options {
     /// The host's Unix time (ms) at clock zero; a jump means time passed away.
     #[live]
     pub epoch: f64,
+    /// The newest answer from the network (village/data's `supa`), one line.
+    #[live]
+    pub net: String,
 }
 
 #[derive(Default, Resource)]
@@ -201,6 +205,10 @@ pub struct DeployRow {
 
 #[derive(Clone, Debug, Default, PartialEq, Data)]
 pub struct Hud {
+    /// The network request out now (village/data reads it); "" when none.
+    pub ask: String,
+    /// Cloud save status for the player.
+    pub cloud: String,
     pub gold: u32,
     pub gold_cap: u32,
     pub elixir: u32,
@@ -347,6 +355,7 @@ impl Game for Village {
         w.insert_resource(fight::Fight::default());
         w.insert_resource(DevMode::default());
         w.insert_resource(Tz::default());
+        w.insert_resource(cloud::Cloud::default());
         draw(w);
     }
 
@@ -370,6 +379,7 @@ impl Game for Village {
         taps(w, input);
         fight::step(w);
         save(w);
+        cloud::step(w, &args.net);
         if w.resource::<Town>().builders_busy() > 0 {
             w.busy("builders at work");
         }
@@ -408,6 +418,8 @@ fn save(w: &mut World) {
     }
     let text = format!("save {SAVE_PREFIX}|{now}|{town}");
     w.emit(text.clone());
+    let wall = wall_ms(w);
+    cloud::kept(w, &format!("{SAVE_PREFIX}|{now}|{town}@{wall}"));
     let mut s = w.resource_mut::<Shown>();
     s.last_save = text;
     s.last_save_ms = now;
@@ -481,6 +493,10 @@ fn toast(w: &mut World, msg: impl Into<String>) {
 /// One HUD command: `buy goldmine`, `place`, `cancel`, `upgrade`, `collect`,
 /// `collectall`, `skip gems`, `skip knowledge`, `review`, `away 60`, `tap 12 7`.
 pub fn command(w: &mut World, cmd: &str) {
+    // `cred <email> <password>`: two words, so read before the one-word parse.
+    if let Some(rest) = cmd.strip_prefix("cred ") {
+        return cloud::set_cred(w, rest);
+    }
     let now = now_ms(w);
     let mut words = cmd.split_whitespace();
     let verb = words.next().unwrap_or("");
@@ -1146,6 +1162,8 @@ pub fn hud(w: &World, now: u64, place_reason: String) -> Hud {
         elixir_cap,
         gems: town.gems,
         knowledge: town.knowledge,
+        ask: w.resource::<cloud::Cloud>().ask.clone(),
+        cloud: w.resource::<cloud::Cloud>().status.clone(),
         study_today: if town.study.day == today { town.study.reviews } else { 0 },
         study_next: economy::CHEST_TIERS
             .iter()

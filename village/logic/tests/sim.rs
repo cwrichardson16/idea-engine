@@ -865,3 +865,84 @@ fn a_power_hour_bank_above_the_normal_cap_survives_save_and_reload() {
     let back = Town::decode(&t.encode()).expect("a power-hour bank must reload");
     assert_eq!(back.get(id).unwrap().banked_milli, 200_000);
 }
+
+// ---- Cloud save (SPEC-3 T3) ----
+
+fn net(sim: &mut Sim<Village>, line: &str) {
+    sim.bind(
+        &[Value::Number(7.0), Value::Bool(false), Value::Bool(false), Value::Number(1_795_850_000_000.0), Value::str(line)],
+        None,
+    )
+    .unwrap();
+    sim.run(100.0);
+}
+
+fn ask(sim: &Sim<Village>) -> String {
+    sim.world().resource::<village_logic::cloud::Cloud>().ask.clone()
+}
+
+#[test]
+fn cloud_joins_signs_in_counts_anki_reviews_once_and_uploads_with_its_version() {
+    let mut sim = Sim::<Village>::new(Options::default()).unwrap();
+    net(&mut sim, "");
+    sim.post("load 1795850000000 ");
+    sim.run(100.0);
+    assert!(ask(&sim).starts_with("1\tjoin"), "{:?}", ask(&sim));
+    net(&mut sim, "1\tok\tp@players.invalid\tsecret");
+    assert_eq!(ask(&sim), "2\tsignin\t\tp@players.invalid\tsecret");
+    net(&mut sim, "2\tok\tTOKEN");
+    assert!(ask(&sim).starts_with("3\tstate\tTOKEN"));
+    // No cloud save yet, and 60 Anki reviews waiting (event 5).
+    let k = sim.world().resource::<Town>().knowledge;
+    net(&mut sim, "3\tok\t0\t5:60:20000\t");
+    assert_eq!(sim.world().resource::<Town>().knowledge, k + 12);
+    assert_eq!(sim.world().resource::<Town>().study.last_event, 5);
+    // The same event again (say after a reload before the server heard) counts nothing.
+    sim.run(6000.0);
+    let up = ask(&sim);
+    assert!(up.starts_with("4\tsave\tTOKEN\t0\t4\t5\tv2|"), "{up:?}");
+    net(&mut sim, "4\tok\t1");
+    {
+        let c = sim.world().resource::<village_logic::cloud::Cloud>();
+        assert_eq!((c.version, c.applied.len()), (1, 0));
+    }
+    // Nothing changed: nothing more goes up.
+    sim.run(12_000.0);
+    assert_eq!(ask(&sim), "");
+}
+
+#[test]
+fn a_cloud_conflict_loads_the_other_devices_save() {
+    let mut sim = Sim::<Village>::new(Options::default()).unwrap();
+    net(&mut sim, "");
+    sim.post("cred p@players.invalid secret");
+    sim.post("load 1795850000000 ");
+    sim.run(100.0);
+    assert!(ask(&sim).starts_with("1\tsignin"));
+    net(&mut sim, "1\tok\tTOKEN");
+    net(&mut sim, "2\tok\t0\t\t");
+    sim.post("devmode on");
+    sim.post("dev rich");
+    sim.run(6000.0);
+    assert!(ask(&sim).starts_with("3\tsave\tTOKEN\t0\t"));
+    // Another device saved a village with 777 gold first.
+    let mut other = Town::new();
+    other.gold = 777;
+    let text = format!("v2|5000|{}@1795850001000", other.encode());
+    net(&mut sim, &format!("3\tconflict\t4\t{text}"));
+    assert_eq!(sim.world().resource::<Town>().gold, 777);
+    assert_eq!(sim.world().resource::<village_logic::cloud::Cloud>().version, 4);
+}
+
+#[test]
+fn offline_keeps_playing_and_retries() {
+    let mut sim = Sim::<Village>::new(Options::default()).unwrap();
+    net(&mut sim, "");
+    sim.post("load 1795850000000 ");
+    sim.run(100.0);
+    net(&mut sim, "1\toffline");
+    assert_eq!(ask(&sim), "");
+    assert!(sim.world().resource::<village_logic::cloud::Cloud>().status.contains("offline"));
+    sim.run(16_000.0);
+    assert!(ask(&sim).starts_with("2\tjoin"));
+}

@@ -45,6 +45,8 @@ pub struct Study {
     /// Power hour, in village ms: production and capacity doubled, training halved.
     pub power_from: u64,
     pub power_until: u64,
+    /// The newest cloud review event already counted here (never counted twice).
+    pub last_event: u64,
 }
 
 impl Study {
@@ -841,11 +843,11 @@ impl Town {
         let stars: Vec<String> = self.stars.iter().map(|n| n.to_string()).collect();
         let looted: Vec<String> = self.looted.iter().map(|n| n.to_string()).collect();
         out += &format!("#{}#{}", stars.join(","), looted.join(","));
-        // Since study (SPEC-3 T2): "#day,reviews,chests,power_today,toward,streak,streak_day,power_from,power_until".
+        // Since study (SPEC-3 T2): "#day,reviews,chests,power_today,toward,streak,streak_day,power_from,power_until,last_event".
         let s = &self.study;
         out += &format!(
-            "#{},{},{},{},{},{},{},{},{}",
-            s.day, s.reviews, s.chests, s.power_today, s.toward, s.streak, s.streak_day, s.power_from, s.power_until
+            "#{},{},{},{},{},{},{},{},{},{}",
+            s.day, s.reviews, s.chests, s.power_today, s.toward, s.streak, s.streak_day, s.power_from, s.power_until, s.last_event
         );
         out
     }
@@ -863,8 +865,10 @@ impl Town {
                     return None;
                 }
                 let n: Vec<u64> = sd.split(',').map(|n| n.parse().ok()).collect::<Option<_>>()?;
-                let [day, reviews, chests, power_today, toward, streak, streak_day, power_from, power_until] = n[..] else {
-                    return None;
+                let (day, reviews, chests, power_today, toward, streak, streak_day, power_from, power_until, last_event) = match n[..] {
+                    [a, b, c, d, e, f, g, h, i] => (a, b, c, d, e, f, g, h, i, 0),
+                    [a, b, c, d, e, f, g, h, i, j] => (a, b, c, d, e, f, g, h, i, j),
+                    _ => return None,
                 };
                 let small = |v: u64| u32::try_from(v).ok();
                 Study {
@@ -877,6 +881,7 @@ impl Town {
                     streak_day: small(streak_day)?,
                     power_from,
                     power_until,
+                    last_event,
                 }
             }
         };
