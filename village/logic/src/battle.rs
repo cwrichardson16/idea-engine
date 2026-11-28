@@ -27,12 +27,12 @@ const fn p(kind: Kind, level: u8, x: i32, z: i32, gold: u32, elixir: u32) -> Pla
     Plan { kind, level, x, z, gold, elixir }
 }
 
-/// The campaign: four rival hospitals to raid, easiest first. A camp is the
+/// The campaign: four rival strongholds to raid, easiest first. A camp is the
 /// same list of placed buildings a player's village becomes (`plans_from_town`),
 /// so raiding another player later is the same battle.
 pub const CAMPS: [(&str, &[Plan]); 4] = [
     (
-        "Free Clinic",
+        "Bandit Camp",
         &[
             p(Kind::TownHall, 1, 13, 13, 100, 100),
             p(Kind::GoldMine, 1, 8, 13, 150, 0),
@@ -42,7 +42,7 @@ pub const CAMPS: [(&str, &[Plan]); 4] = [
         ],
     ),
     (
-        "Urgent Care",
+        "Raider Outpost",
         &[
             p(Kind::TownHall, 1, 13, 13, 150, 150),
             p(Kind::Cannon, 1, 13, 9, 0, 0),
@@ -53,7 +53,7 @@ pub const CAMPS: [(&str, &[Plan]); 4] = [
         ],
     ),
     (
-        "Community Hospital",
+        "Rebel Fort",
         &[
             p(Kind::TownHall, 2, 13, 13, 200, 200),
             p(Kind::Cannon, 1, 9, 9, 0, 0),
@@ -66,7 +66,7 @@ pub const CAMPS: [(&str, &[Plan]); 4] = [
         ],
     ),
     (
-        "Mega Medical Center",
+        "Warlord's Citadel",
         &[
             p(Kind::TownHall, 3, 13, 13, 300, 300),
             p(Kind::Cannon, 2, 9, 9, 0, 0),
@@ -256,7 +256,7 @@ impl Battle {
             return Err("Off the map".into());
         }
         if self.reserve.get(t.index()).copied().unwrap_or(0) == 0 {
-            return Err(format!("No {}s left", t.name()));
+            return Err(format!("No {} left", t.plural()));
         }
         let blocked = self.targets.iter().any(|b| {
             let s = b.kind.size();

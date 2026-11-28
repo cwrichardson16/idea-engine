@@ -106,7 +106,7 @@ component Village
   state bugDraft = ""
   // The village, kept by the page between visits (Rust writes it).
   state village = "" persist
-  // Dev tools stay hidden for testers: 5 taps on the Hospital badge turn them on.
+  // Dev tools stay hidden for testers: 5 taps on the Keep badge turn them on.
   state devMode = false persist
   // This device's cloud player account (made by the join function; never shown).
   state cred = "" persist
@@ -195,13 +195,13 @@ component Village
           // Top bar: resources and builders.
           row testId="hud-top" position="absolute" top=16 left=16 right=16 gap=10 align-items="center" justify-content="space-between"
             row gap=10 flex-wrap="wrap"
-              text `💵 ${hud.gold} / ${hud.gold_cap}` testId="hud-gold" font-variant-numeric="tabular-nums" padding=10 border-radius=10 background-color="#3b2f0bcc" color="#ffd54f" box-shadow="inset 0 -4px 0 #00000055, 0 2px 0 #00000088" border-width=2 border-style="solid" border-color="#00000066"
-              text `☕ ${hud.elixir} / ${hud.elixir_cap}` testId="hud-elixir" font-variant-numeric="tabular-nums" padding=10 border-radius=10 background-color="#3a0b3bcc" color="#f0a6ff" box-shadow="inset 0 -4px 0 #00000055, 0 2px 0 #00000088" border-width=2 border-style="solid" border-color="#00000066"
-              text `🩺 ${hud.gems}` testId="hud-gems" padding=10 border-radius=10 background-color="#0b2a3bcc" color="#7fdbff" box-shadow="inset 0 -4px 0 #00000055, 0 2px 0 #00000088" border-width=2 border-style="solid" border-color="#00000066"
+              text `🪙 ${hud.gold} / ${hud.gold_cap}` testId="hud-gold" font-variant-numeric="tabular-nums" padding=10 border-radius=10 background-color="#3b2f0bcc" color="#ffd54f" box-shadow="inset 0 -4px 0 #00000055, 0 2px 0 #00000088" border-width=2 border-style="solid" border-color="#00000066"
+              text `🌾 ${hud.elixir} / ${hud.elixir_cap}` testId="hud-elixir" font-variant-numeric="tabular-nums" padding=10 border-radius=10 background-color="#3a0b3bcc" color="#f0a6ff" box-shadow="inset 0 -4px 0 #00000055, 0 2px 0 #00000088" border-width=2 border-style="solid" border-color="#00000066"
+              text `👑 ${hud.gems}` testId="hud-gems" padding=10 border-radius=10 background-color="#0b2a3bcc" color="#7fdbff" box-shadow="inset 0 -4px 0 #00000055, 0 2px 0 #00000088" border-width=2 border-style="solid" border-color="#00000066"
               text `📚 ${hud.knowledge}` testId="hud-knowledge" padding=10 border-radius=10 background-color="#0b3b22cc" color="#9cffc4" box-shadow="inset 0 -4px 0 #00000055, 0 2px 0 #00000088" border-width=2 border-style="solid" border-color="#00000066"
-              text `🧑‍⚕️ ${hud.builders_free}/${hud.builders}` testId="hud-builders" padding=10 border-radius=10 background-color="#202731cc" box-shadow="inset 0 -4px 0 #00000055, 0 2px 0 #00000088" border-width=2 border-style="solid" border-color="#00000066"
-              button press=devTap testId="hud-th" aria-label=`Hospital level ${hud.town_hall}` padding=10 border-radius=10 background-color="#202731cc" box-shadow="inset 0 -4px 0 #00000055, 0 2px 0 #00000088" border-width=2 border-style="solid" border-color="#00000066"
-                text `🏥 Hospital ${hud.town_hall}`
+              text `🔨 ${hud.builders_free}/${hud.builders}` testId="hud-builders" padding=10 border-radius=10 background-color="#202731cc" box-shadow="inset 0 -4px 0 #00000055, 0 2px 0 #00000088" border-width=2 border-style="solid" border-color="#00000066"
+              button press=devTap testId="hud-th" aria-label=`Keep level ${hud.town_hall}` padding=10 border-radius=10 background-color="#202731cc" box-shadow="inset 0 -4px 0 #00000055, 0 2px 0 #00000088" border-width=2 border-style="solid" border-color="#00000066"
+                text `🏰 Keep ${hud.town_hall}`
             if devMode
               row gap=10
                 button press=send("dev rich") testId="dev-rich" aria-label="Dev: fill storage" padding=10 border-radius=10 background-color="#5d4037" box-shadow="inset 0 -4px 0 #00000055, 0 2px 0 #00000088" border-width=2 border-style="solid" border-color="#00000066"
@@ -273,7 +273,7 @@ component Village
                     text "Collect"
                 if hud.selected.left > 0
                   button press=send("skip gems") testId="skip-gems" disabled=(hud.gems < hud.selected.skip_gems) padding=10 border-radius=10 background-color="#1565c0" box-shadow="inset 0 -4px 0 #00000055, 0 2px 0 #00000088" border-width=2 border-style="solid" border-color="#00000066"
-                    text `Finish now · 🩺 ${hud.selected.skip_gems}`
+                    text `Finish now · 👑 ${hud.selected.skip_gems}`
                   button press=send("skip knowledge") testId="skip-knowledge" disabled=(hud.knowledge < hud.selected.skip_knowledge) padding=10 border-radius=10 background-color="#1f7a4d" box-shadow="inset 0 -4px 0 #00000055, 0 2px 0 #00000088" border-width=2 border-style="solid" border-color="#00000066"
                     text `Finish now · 📚 ${hud.selected.skip_knowledge}`
                 if hud.selected.left == 0 and hud.selected.level < hud.selected.max_level
@@ -287,26 +287,26 @@ component Village
               text (shopOpen ? "Close shop" : "🏪 Shop") font-size=18
           if hud.placing == "" and hud.has_barracks and not hud.raiding
             button press=toggleArmy testId="army-open" aria-expanded=armyOpen position="absolute" bottom=24 right=170 padding=16 border-radius=14 background-color="#9e3b2e" box-shadow="inset 0 -4px 0 #00000055, 0 2px 0 #00000088" border-width=2 border-style="solid" border-color="#00000066"
-              text (armyOpen ? "Close staff" : `🩺 Staff ${hud.housing_used}/${hud.housing_cap}`) font-size=18
+              text (armyOpen ? "Close army" : `⚔️ Army ${hud.housing_used}/${hud.housing_cap}`) font-size=18
           if armyOpen and hud.placing == "" and not hud.raiding
             column testId="army" position="absolute" bottom=90 right=24 width="20rem" gap=8 padding=14 border-radius=12 background-color="#202731f0"
-              text `Staff · ${hud.housing_used} of ${hud.housing_cap} ${hud.housing_cap == 1 ? "bed" : "beds"} used` font-size=18
+              text `Army · ${hud.housing_used} of ${hud.housing_cap} ${hud.housing_cap == 1 ? "space" : "spaces"} used` font-size=18
               for r in hud.army key=r.key
-                button press=send(`train ${r.key}`) testId=`train-${r.key}` disabled=(r.reason != "") aria-label=(r.reason == "" ? `Train ${r.name}, ${r.cost} coffee` : `${r.name}, ${r.reason}`) padding=10 border-radius=10 background-color=(r.reason == "" ? "#3e4f5c" : "#2a2f33") text-align="left" box-shadow="inset 0 -4px 0 #00000055, 0 2px 0 #00000088" border-width=2 border-style="solid" border-color="#00000066"
+                button press=send(`train ${r.key}`) testId=`train-${r.key}` disabled=(r.reason != "") aria-label=(r.reason == "" ? `Train ${r.name}, ${r.cost} grain` : `${r.name}, ${r.reason}`) padding=10 border-radius=10 background-color=(r.reason == "" ? "#3e4f5c" : "#2a2f33") text-align="left" box-shadow="inset 0 -4px 0 #00000055, 0 2px 0 #00000088" border-width=2 border-style="solid" border-color="#00000066"
                   column gap=2
                     text `${r.name} ×${r.count}` font-size=15
-                    text (r.reason == "" ? `${r.cost} ☕ · ${r.secs}s · ${r.housing} ${r.housing == 1 ? "bed" : "beds"}` : r.reason) font-size=12 color=(r.reason == "" ? "#f0a6ff" : "#ff8a80")
+                    text (r.reason == "" ? `${r.cost} 🌾 · ${r.secs}s · ${r.housing} ${r.housing == 1 ? "space" : "spaces"}` : r.reason) font-size=12 color=(r.reason == "" ? "#f0a6ff" : "#ff8a80")
               if hud.queue.length > 0
                 text `Training ${hud.training} · ${hud.training_left}s · ${hud.queue.length} queued` testId="training" color="#ffd54f"
                 button press=send("untrain 0") testId="untrain" padding=8 border-radius=10 background-color="#8e2b2b" box-shadow="inset 0 -4px 0 #00000055, 0 2px 0 #00000088" border-width=2 border-style="solid" border-color="#00000066"
                   text "✕ Cancel first (refund)"
-          // Raids: the Raid button and the list of rival hospitals.
+          // Raids: the Raid button and the list of rival strongholds.
           if hud.placing == "" and not hud.raiding
             button press=toggleCamp testId="raid-open" aria-expanded=campOpen position="absolute" bottom=24 left="50%" transform="translateX(-50%)" padding=16 border-radius=14 background-color="#c62828" box-shadow="inset 0 -4px 0 #00000055, 0 2px 0 #00000088" border-width=2 border-style="solid" border-color="#00000066"
-              text (campOpen ? "Close" : "🚑 Raid") font-size=20
+              text (campOpen ? "Close" : "⚔️ Raid") font-size=20
           if campOpen and not hud.raiding
             column testId="campaign" position="absolute" bottom=96 left="50%" transform="translateX(-50%)" width="22rem" gap=8 padding=14 border-radius=12 background-color="#202731f0"
-              text "Rival hospitals" font-size=18
+              text "Rival strongholds" font-size=18
               for c in hud.campaign key=c.index
                 button press=attack(c.index) testId=`attack-${c.index}` disabled=(c.reason != "") aria-label=(c.reason == "" ? `Raid ${c.name}, best ${c.stars} of 3 stars` : `${c.name}, ${c.reason}`) padding=10 border-radius=10 background-color=(c.reason == "" ? "#3e4f5c" : "#2a2f33") text-align="left"
                   column gap=2
@@ -319,7 +319,7 @@ component Village
               text `⏱ ${hud.raid_secs}s` testId="raid-time" font-variant-numeric="tabular-nums"
               text `${hud.raid_percent}%` testId="raid-percent" font-variant-numeric="tabular-nums"
               text `⭐ ${hud.raid_stars}` testId="raid-stars"
-              text `💵 ${hud.raid_gold} ☕ ${hud.raid_elixir}` testId="raid-loot" font-variant-numeric="tabular-nums"
+              text `🪙 ${hud.raid_gold} 🌾 ${hud.raid_elixir}` testId="raid-loot" font-variant-numeric="tabular-nums"
             column testId="deploy" position="absolute" bottom=24 left=16 gap=8 padding=12 border-radius=12 background-color="#202731e6"
               text "Tap outside the red border to drop" font-size=13
               row gap=8
@@ -332,7 +332,7 @@ component Village
             column testId="result" position="absolute" top="50%" left="50%" transform="translate(-50%, -50%)" width="20rem" gap=12 padding=20 border-radius=16 background-color="#202731f5" align-items="center"
               text (hud.result_stars > 0 ? "Victory!" : "Defeat") font-size=28 color=(hud.result_stars > 0 ? "#ffd54f" : "#ff8a80")
               text `⭐ ${hud.result_stars} / 3 · ${hud.result_percent}% destroyed` testId="result-stars"
-              text `Loot: 💵 ${hud.result_gold} · ☕ ${hud.result_elixir}` testId="result-loot"
+              text `Loot: 🪙 ${hud.result_gold} · 🌾 ${hud.result_elixir}` testId="result-loot"
               text `Troops used: ${hud.result_used}` font-size=13
               button press=send("home") testId="home" padding=14 border-radius=12 background-color="#43a047"
                 text "Return home"
@@ -340,16 +340,16 @@ component Village
             column testId="shop" position="absolute" bottom=90 right=24 width=300 gap=8 padding=14 border-radius=12 background-color="#202731f0"
               text "Shop" font-size=18
               for r in hud.shop key=r.key
-                button press=buy(r.key) testId=`buy-${r.key}` disabled=(r.reason != "") aria-label=(r.reason == "" ? `${r.name}, ${r.cost} ${r.res == "gold" ? "grant money" : "coffee"}` : `${r.name}, ${r.reason}`) padding=10 border-radius=10 background-color=(r.reason == "" ? "#3e4f5c" : "#2a2f33") text-align="left" box-shadow="inset 0 -4px 0 #00000055, 0 2px 0 #00000088" border-width=2 border-style="solid" border-color="#00000066"
+                button press=buy(r.key) testId=`buy-${r.key}` disabled=(r.reason != "") aria-label=(r.reason == "" ? `${r.name}, ${r.cost} ${r.res == "gold" ? "gold" : "grain"}` : `${r.name}, ${r.reason}`) padding=10 border-radius=10 background-color=(r.reason == "" ? "#3e4f5c" : "#2a2f33") text-align="left" box-shadow="inset 0 -4px 0 #00000055, 0 2px 0 #00000088" border-width=2 border-style="solid" border-color="#00000066"
                   column gap=2
                     text `${r.name} (${r.owned}/${r.max})` font-size=15
-                    text (r.reason == "" ? `${r.cost} ${r.res == "gold" ? "💵" : "☕"}${r.secs > 0 ? ` · ${r.secs}s` : ""}` : r.reason) font-size=12 color=(r.reason == "" ? (r.res == "gold" ? "#ffd54f" : "#f0a6ff") : "#ff8a80")
+                    text (r.reason == "" ? `${r.cost} ${r.res == "gold" ? "🪙" : "🌾"}${r.secs > 0 ? ` · ${r.secs}s` : ""}` : r.reason) font-size=12 color=(r.reason == "" ? (r.res == "gold" ? "#ffd54f" : "#f0a6ff") : "#ff8a80")
       else
         column width="100%" height="100%" box-sizing="border-box" padding=24 align-items="center" justify-content="center" gap=24
-          text "Grand Rounds" font-size=48 color="#7ee08a"
-          text "✚ a med-school base builder (working title)" font-size=14 color="#b7f5c0"
+          text "Stonehaven" font-size=48 color="#7ee08a"
+          text "a base builder powered by your studying" font-size=14 color="#b7f5c0"
           column width="100%" max-width="24rem" align-items="center" gap=8
-            text "Build your hospital. Grant Offices and Coffee Carts fill over time: tap them to collect." width="100%" text-align="center"
-            text "Residents take time to build. Studying earns Knowledge 📚, which finishes timers early." width="100%" text-align="center"
+            text "Build your keep. Mints and Farms fill over time: tap them to collect." width="100%" text-align="center"
+            text "Masons take time to build. Studying earns Knowledge 📚, which finishes timers early." width="100%" text-align="center"
           button press=play autofocus aria-label="Play" testId="play" padding=16 border-radius=12 background-color="#ef6c00" box-shadow="inset 0 -4px 0 #00000055, 0 2px 0 #00000088" border-width=2 border-style="solid" border-color="#00000066"
             text "Play" font-size=20

@@ -43,7 +43,7 @@ So no design can make cheating impossible. A determined programmer can always wr
 - CONFIRMED: an older leaderboard add-on reads the revlog and uploads only totals. https://forums.ankiweb.net/t/is-leaderboard-addon-safe/2504 (search summary; treat as UNVERIFIED in detail)
 - CONFIRMED: AnkiHabitica scores on timebox or deck completion and does no verification. https://github.com/NameLessGO/AnkiHabitica , https://www.github.com/doc-bok/AnkiHabitica
 - CONFIRMED: Review Heatmap is display only, with no server and no verification. https://github.com/glutanimate/review-heatmap
-- UNVERIFIED: "Grade Now" (grading cards from the browser) arrived in Anki 25.07, and I don't know which revlog `type` and `time` it writes. https://forums.ankiweb.net/t/should-grade-now-be-usable-with-sm-2/64196 . The design below ignores rows with time under 1.5 s and refuses any type-1 review that comes too early, so it is covered either way. We should test it in a real Anki before launch.
+- RESOLVED (adversarial review finding, not re-checked by me): "Grade Now" (grading from the browser, said to arrive in Anki 25.07) writes type 3 rows with an ease, which the design already ignores. https://forums.ankiweb.net/t/should-grade-now-be-usable-with-sm-2/64196 (version claim from the forum, UNVERIFIED). A quick check in a real Anki 25.x during the build is still cheap.
 
 Bottom line from prior art: nobody in the Anki world verifies reviews on a server. The leaderboards trust totals and live with cheating. So per-review checks against the schedule would be new ground. I found no off-the-shelf library to adopt.
 
@@ -71,40 +71,51 @@ All three share these basics:
 - Verdict: stops outsiders only. The player is still trusted completely.
 
 ### Design B: "Review ledger" (per-review records, server checks the schedule)
-What the add-on sends, as a batch every few minutes while reviewing (`reviewer_did_answer_card` triggers a send, debounced) and again after each sync (`sync_did_finish`, which picks up phone reviews):
+
+Revised 2026-11-28 after an adversarial review blocked the first version. Changes: late rows of any age are accepted; the ramp counts review days by row timestamp; the snapshot covers all non-new cards; spacing runs from the last row with ease > 0; type 5 no longer marks a card tampered; only reviews that grow an interval earn credit; the day is the player's Anki day.
+
+What the add-on sends, as a batch every few minutes while reviewing (`reviewer_did_answer_card` triggers a send, debounced) and again after each sync (`sync_did_finish`, which picks up phone reviews with their original timestamps):
 ```
-{ token, reviews: [ { id, card: hmac16, type, ease, time_ms, ivl, last_ivl, factor } ... ] }
+{ token, anki_day, rollover_hour, utc_offset_min,
+  reviews: [ { id, card: hmac16, type, ease, time_ms, ivl, last_ivl, factor } ... ] }
 ```
-At pairing it also sends the last 30 days of the same records (the history snapshot), plus `{cards_total, cards_new}` counts. It never sends card or deck content.
+At pairing it sends a snapshot of every non-new card from the `cards` table: `{ card: hmac16, type, queue, ivl, due_day }`, with `due_day` converted to an absolute Anki day. It also sends the last 30 days of revlog rows, used only for analysis. It never sends card or deck content.
 
-What the server stores: `anki_cards(player, card_hash, origin [snapshot|new_counted|new_uncounted], last_id, last_ivl, last_type)` and `anki_reviews(player, id, card_hash, ..., received_at, credited, reason)`, keyed by `(player, id)`. Raw review rows are deleted after 60 days.
+What the server stores: `anki_cards(player, card_hash, origin [snapshot|new_counted|new_uncounted], last_scored_id, last_scored_ivl, expected_ivl, tampered)` and `anki_reviews(player, id, card_hash, ..., anki_day, received_at, credited, reason)`, keyed by `(player, id)`. Pairing also stores `paired_at` (server clock) and the player's `utc_offset_min` and `rollover_hour`. Raw review rows are deleted after 60 days.
 
-Server rules, applied to each row in id order. A row earns credit only if all of these pass:
-1. Ordering and clock: the id is unique for the player. The id is no later than the server's time + 2 min, and no earlier than server time − 72 h. A row within 15 min of arrival is "live"; an older one is "late" (a phone sync). Anything outside that window is refused, which kills changing the system clock and backdating.
-2. Type: only types 0, 1 and 2. Types 3 (filtered or cram), 4 (manual) and 5 (rescheduled) never count, and a type 4 or 5 row marks that card "tampered" until its next properly spaced review.
-3. Time: `time_ms` must be at least 1,500.
-4. The card must be known. It was either in the pairing snapshot, or its first-ever learning row (type 0, server never saw it before) was accepted into the new-card ledger: at most 50 a local day, first come, first served. Cards past the 50 are stored as `new_uncounted`, and none of their reviews ever earn credit. That stops "import 5,000 cards and farm them".
-5. Spacing (the core check). For a type 1 review, the gap since the server's last row for that card must be at least `0.8 × last_ivl days − 12 h`. If the server holds no earlier row (a card from before the snapshot), the row's own `last_ivl` must be greater than 0. A review that comes early (because of set due date, a custom study session with rescheduling off, or a forged row) gets no credit.
-6. Chain: the row's `last_ivl` should equal the server's stored `ivl` for that card. If it doesn't, the row still counts but the mismatch is logged (the wiki says these can differ, and FSRS optimizing can shift them). Cards whose chain is broken more than 5% of the time get flagged.
-7. Per card per day: at most 1 credited type-1 row, 1 credited type-2 row (one lapse) and 2 credited type-0 rows. Pressing Again over and over earns nothing.
+Day: each row's Anki day = floor((id/1000 + utc_offset_min×60 − rollover_hour×3600) / 86400). The default rollover is 4 am local. The batch's `anki_day` must be within ±1 of the day the server computes from its own clock and the stored offset. The offset is fixed at pairing and may change at most once every 7 days (for travel). Otherwise a client could slide the day boundary to fit two days' caps into one.
 
-Daily credit = the number of credited rows, capped at `min(1500, ramp)`, where `ramp = 300 + 50 × live_days`. `live_days` counts the days on which the server saw at least 20 rows arrive live. That reaches the 1,500 cap after about 24 days of real use. The baseline the client sends is for analysis only.
+Server rules, applied to each card's rows in id order. A row earns credit only if all of these pass:
+1. Uniqueness and clock: the `(player, id)` pair must be new; duplicates are refused. The id must be no later than server time + 2 min (no future rows). It must also be no earlier than `paired_at`, since anything older is covered by the snapshot. Late rows of any age after pairing are accepted, because phone reviews reach the desktop revlog days later through sync.
+2. Order within a card: if the server already holds a scored row for this card with a higher id, an older row arriving late for that same card is stored but not credited. The honest case (the same card reviewed on phone and desktop before a sync) is rare.
+3. Type: only types 0, 1 and 2 earn credit. Type 3 (filtered or cram, including Grade Now) never counts. Type 4 (Manual: set due date, reset or forget) marks the card tampered. Type 5 (Rescheduled, e.g. FSRS "reschedule cards on change") does not mark the card tampered. It may shorten the card's `expected_ivl`, but not below 50% of the last scored interval.
+4. Time: `time_ms` must be at least 1,500.
+5. The card must be known. It was either in the pairing snapshot, or its first-ever learning row (type 0, card not seen before) was accepted into the new-card ledger: at most 50 per Anki day of the row's timestamp. Cards past the 50 are stored as `new_uncounted`, and none of their reviews ever earn credit. Non-new cards that show up after pairing without a type 0 row (for example, a deck imported with its scheduling) are also uncounted.
+6. Spacing: for a type 1 row, the gap since the card's last row with ease > 0 must be at least `0.8 × expected_ivl days − 12 h`. Manual rows (ease 0) never reset the clock. For a snapshot card with no scored row yet, the review must fall on or after its snapshot `due_day` − 1.
+7. Growth: this closes the 1-day farm. A type 1 row with ease 2, 3 or 4 earns credit only if its new `ivl` is at least 2 days, or is greater than its `last_ivl`. A Good/Easy review that leaves the card stuck at 1 day earns nothing and flags the card. A lapse (type 1, ease 1) earns credit only if the card's last scored interval was at least 2 days. Lapses can be at most 20% of a day's credited type 1 rows.
+8. Tampered cards earn nothing until they have a type 1 review at least 1 day after the Manual row, with interval growth as in rule 7. A tampered card's type 0 rows never get new-card credit.
+9. Per card per Anki day: at most 1 credited type 1 row, 1 credited type 2 row and 2 credited type 0 rows. Pressing Again over and over earns nothing.
+10. Chain: the row's `last_ivl` should equal the server's last scored `ivl`. A mismatch is logged but not refused, because FSRS optimizing and rescheduling can change it. Cards whose chain breaks more than 5% of the time get flagged.
+
+Daily credit = credited rows for that Anki day, capped at `min(1500, ramp)`. Also, no 24 h window of row timestamps may hold more than 1,500 credited rows. `ramp = 300 + 50 × review_days`. `review_days` counts the distinct Anki days since pairing, by row timestamp, that have at least 20 credited rows. It can never exceed the calendar days since `paired_at` on the server clock, so backfilling doesn't speed it up. The cap reaches 1,500 after about 24 days of study. The client's baseline is for analysis only.
 
 Pattern flags (reviewed by Conner; a flagged day is credited at 50% and shows "checking" in the game; no automatic bans):
 - Again rate on type 1 reviews under 2% across 300+ reviews in 7 days. (My assumption: real retention is about 80 to 95%, so 5 to 20% Again is normal. That fits FSRS default desired retention 0.9: UNVERIFIED, page not opened, https://github.com/open-spaced-repetition/fsrs4anki/wiki/The-optimal-retention.)
 - Metronome timing: time variation across a day under 0.25, or more than 40% of times inside one 200 ms band.
 - More than 3 h of reviewing with no gap over 5 min.
-- A day over 3× the player's server-observed 14-day median, once that median is above 50.
-- Late rows (phone) making up over 70% of a week while the player claims to also use desktop. That one is info only.
+- A day over 3× the player's 14-day median, once that median is above 50.
+- More than 5% of a day's Good/Easy reviews leave a card stuck at 1 day.
+- Backfill: one batch carries rows for 3 or more past Anki days on which the server had received nothing. Normal for a phone user who syncs weekly, so this is info only. It is also what a bulk forger looks like.
+- A snapshot over 20,000 non-new cards, or a snapshot where more than 30% of cards fall due within the first 3 days (an implausibly front-loaded collection).
 
 How a cheater beats B, and what it costs:
-- Fake poster: a script that simulates a scheduler and posts realistic rows in real time. It must keep a per-card schedule, respect intervals, fail about 10% of reviews, vary times like a human, and post live every day. Cost: a programmer with an AI can write it in an afternoon to a day. Payoff: capped by the ramp and by the 50-a-day new-card ledger, so it starts at 300 a day and builds like a real student would. This cannot be fully prevented.
-- An auto-clicker in real Anki on a real deck: the revlog is genuine. The pattern flags catch naive bots (always Good, steady timing). A randomized bot beats them. Cost: a few hours of setup, and the computer stays busy. Payoff: still limited by how many cards are actually due, which only grows at the pace of the 50-a-day new-card ledger. Cannot be fully prevented.
-- A trivial deck tapped honestly by a human (cards like "1+1"). Cost: about 2 to 4 s a card, so 1,500 reviews is 50 to 100 minutes of real tapping every day, while cards are still bounded by the due schedule. Can't be detected without seeing content. Accepted: it costs real time, about what studying costs.
-- Forged history: write fake revlog rows straight into SQLite before pairing, to start with thousands of "mature" cards. Partly blocked: credit still starts at 300 a day under the ramp, and the snapshot gives no credit by itself.
+- Fake poster: a script that simulates a scheduler. It must make a per-card schedule consistent with the snapshot, grow intervals, fail about 10% of reviews and vary times like a human. Because late rows are now accepted, it can post a whole week at once instead of every day. Cost: an afternoon to a day for a programmer with an AI. Payoff: capped by the ramp, which follows server calendar days, and by the 50-a-day new-card ledger. This cannot be fully prevented.
+- An auto-clicker in real Anki on a real deck: the revlog is genuine. The pattern flags catch naive bots; a randomized bot beats them. Payoff is limited by real due cards and the ramp. This cannot be fully prevented.
+- A trivial deck tapped honestly by a human: costs real time (2 to 4 s a card), and growing intervals mean each card soon stops coming up, so they need an ever-larger deck. Can't be detected without seeing content. Accepted.
+- Forged snapshot of a large, realistic mature collection, fed by the fake poster. Not closed. It gets the same payoff as a real heavy user once the ramp allows: 1,500 a day from about day 24.
 - Someone else studies on your account: can't be detected. Accepted.
 
-Build cost: about 3 to 4 days. Add-on 1 day; edge function, two tables and rules 1.5 days; tests (an attack script per cheat below, against a local Supabase) 1 day.
+Build cost: about 4 days. Add-on 1 day (snapshot, day maths, batching); edge function, two tables and rules 2 days; tests (an attack script per cheat below, against a local Supabase) 1 day.
 
 ### Design C: "Our own sync server"
 The player points Anki and AnkiDroid at a sync server we host (Anki supports this: https://docs.ankiweb.net/sync-server.html). We read their whole collection from the sync stream and run the B rules on it.
@@ -117,35 +128,44 @@ Simpler alternative considered: A plus a 1.5 s floor. It's not better because th
 
 ## Attacking Design B as a cheater, and the fixes
 
-| # | Attack | Outcome under the B rules above | Fix added |
+Second pass, against the revised rules.
+
+| # | Attack | Outcome under the revised B rules | Fix added |
 |---|---|---|---|
 | 1 | Post the same rows twice / replay | Unique `(player,id)`: refused | none needed |
 | 2 | Leak or share pairing code | Single-use, 10 min: dead | none needed |
-| 3 | Change system clock, post future or past rows | id window vs server time: refused | none needed |
-| 4 | Spam Again on one card (learning steps every minute) | ≤ 2 learn + 1 relearn credited per card per day | none needed |
-| 5 | Custom study / filtered deck cramming | type 3: ignored | none needed |
-| 6 | Select 1,000 cards, "set due date: today", review them | Manual rows mark cards tampered; gap < 0.8×ivl: no credit | none needed |
-| 7 | Forget/reset cards so they become new again | Same cid, server already knows the card: no new credit; reviews must respect spacing | Hole found: after a reset, `last_ivl` is 0, so the spacing check passes trivially. Fix: a tampered card earns no credit until it has a type-1 review 1+ days after the Manual row, and a tampered card's type-0 rows never earn new-card credit |
-| 8 | Delete and reimport a deck (new cids) | Treated as new cards: 50/day ledger | none needed |
-| 9 | Make 5 Anki profiles, all posting to one token | All share one ledger and one ramp | Hole: the profiles post in parallel, each with real "due" cards it imported long ago. Fix: one device token per profile is fine, but credit is per player, so the ramp and ledger still cap it. Also flag 2+ distinct "first-seen card id ranges" from one token (info) |
-| 10 | Write forged rows straight into the revlog to make the spacing look right, then press keys | Rows must arrive live or within 72 h; forged mature history still starts at 300/day | Hole: late (phone) rows within 72 h can be forged in bulk at day end. Fix: late rows count only toward a separate cap of max(200, 1.2 × 14-day median of live rows), unless the player has no desktop live rows that week (a phone-first player still ramps the same way) |
-| 11 | Edit the add-on to mark everything "live" | Live is judged by the server's arrival time, not a client flag | none needed |
-| 12 | Time inflation (set `time_ms` = 4,000 on 0.3 s taps) | Not detectable per row | Partly fixed by the metronome flag (a constant fake time looks robotic); can't be fixed fully |
-| 13 | Fake poster / smart bot (see above) | Capped at a diligent student's ramp | Fix: none possible. Limit what it wins: boosts above the player's own 14-day median give half value, so a cheater's extra hours buy little. This is a game design choice for Conner, flagged as optional |
-| 14 | Use "Grade Now" to grade hundreds of cards at once (UNVERIFIED type) | If it writes time ≈ 0 → 1.5 s floor drops it. If type 1 but early → spacing refuses | Fix: add an attack test in a real Anki 25.x before launch to confirm |
-| 15 | Wipe the salt and re-pair to reset flags | Card records reset, but the ramp also resets to 300 | none needed (a reset costs the cheater) |
-| 16 | Flood the endpoint | Per token: max 1 batch every 20 s, ≤ 2,000 rows; wrong token: 10/h/IP (existing) | none needed |
+| 3 | Change the system clock to post future rows | id > server time + 2 min: refused | none needed |
+| 4 | Backdate rows to before pairing | id < `paired_at`: refused | none needed |
+| 5 | Spam Again on one card (learning steps every minute) | ≤ 2 learn + 1 relearn credited per card per day; lapses need a prior interval ≥ 2 days and are ≤ 20% of a day | none needed |
+| 6 | Custom study / filtered deck cramming / Grade Now | Type 3: ignored. RESOLVED: Grade Now writes type 3 rows with an ease (finding from the adversarial review; I did not re-check the source) | none needed |
+| 7 | Select 1,000 cards, "set due date: today", review them | Manual rows mark cards tampered; spacing runs from the last ease > 0 row: no credit | none needed |
+| 8 | Forget/reset cards so they become new again | Tampered; type 0 rows of a tampered card get no new-card credit | none needed |
+| 9 | Delete and reimport a deck (new cids) | New cards: 50/day ledger. Reimport with scheduling: non-new and unknown, so uncounted | none needed |
+| 10 | Forged snapshot of 1,500 cards on 1-day intervals, one Good row per card per day, ivl 1→1, 2–8 s, ~10% Again (the reviewer's cheapest farm) | Rule 7: Good/Easy ending at ivl 1 with no growth earns nothing and flags the card; lapses on 1-day cards earn nothing | Closed |
+| 11 | Same farm but intervals grow 1→2→4→8 | Each card earns less and less often; sustaining 1,500/day needs a forged pool of roughly 15,000+ cards with realistic due spread. Front-loaded snapshots are flagged | Snapshot flags added (size, front-loading). Still bounded by the ramp |
+| 12 | FSRS "reschedule" with desired retention 0.99 to shrink every interval, then review the extra due cards | Type 5 may shorten `expected_ivl` only to 50% of the last scored interval | Floor added. The extra reviews are real study at higher retention, which is accepted |
+| 13 | Shift `utc_offset_min` or rollover to squeeze two days' caps into ~24 h | Offset fixed at pairing, one change per 7 days, plus the 1,500-per-24h-window cap on row timestamps | none needed |
+| 14 | Backfill: after 24 days, post forged rows for every past day to collect the old days' caps | Accepted if each card chain passes; the backfill flag fires; day credit is capped by the ramp that applied on that day | New hole, see below |
+| 15 | Inflate the ramp by backfilling rows on many past days | `review_days` ≤ calendar days since `paired_at` (server clock) | none needed |
+| 16 | 5 Anki profiles posting to one player | Shared ledger, ramp and daily cap per player | none needed |
+| 17 | Edit `time_ms` to 4,000 on 0.3 s taps | Not detectable per row; the metronome flag catches only a constant fake time | Can't be fixed fully |
+| 18 | Wipe the salt and re-pair to reset flags or resend a bigger forged snapshot | Card records reset, the ramp resets to 300, and `paired_at` moves forward | none needed |
+| 19 | Flood the endpoint | Per token: max 1 batch every 20 s, ≤ 2,000 rows; wrong token: 10/h/IP (existing) | none needed |
 
-Each of these becomes an attack script in the test, so the defenses are proven by running them rather than described. The proof should post as a cheater for cases 1 to 11, 14 and 15 and show 0 credited.
+New hole found on the second pass (row 14): dropping the freshness rule means a fake poster no longer has to run every day. It can fabricate a full month of past days in one sitting and claim each day's cap retroactively. Fix: credit for past days arriving in one batch is limited to the ramp that applied on each day, AND to a backfill budget. Rows for Anki days older than yesterday can credit at most 2 × ramp in total per arrival day. An honest phone user who syncs desktop weekly still gets most of the week, and fills the rest the next day. It also fires the backfill flag for Conner. It stops the instant month-long jackpot. It does not stop a patient forger who backfills a little each day; that is the fake-poster floor.
+
+Smaller note: `due_day` in the snapshot needs the collection's creation day to become absolute (review cards store due as days since collection creation, CONFIRMED https://github.com/ankidroid/Anki-Android/wiki/Database-Structure). The add-on computes this locally from `col.sched.today` / collection creation time (UNVERIFIED API name; check in Anki 25.x).
+
+Each row becomes an attack script in the proof. Cases 1 to 10, 13, 15 and 18 must show 0 extra credit. Case 14 must show the backfill budget holding.
 
 ## Recommendation
 
-Build Design B, the review ledger, with the fixes for rows 7, 9, 10 and 14 above. Also drop `log_reviews` and the honour column path (migration 006), and replace the reused pairing code with the single-use code and device token.
+Build the revised Design B (review ledger), including the backfill budget from the second pass. Also drop `log_reviews` and the honour column path (migration 006), and replace the reused pairing code with the single-use code and device token.
 
-Why: it's the only option that turns "type a number" into "build and run a scheduler simulator or a bot every day", and even then the payoff is capped at what a diligent real student would earn. It keeps card content private, works with phone reviews after a desktop sync, and costs about 3 to 4 days.
+Why: it's the only option that turns "type a number" into "forge a realistic, growing collection and run a scheduler simulator or bot", and even then the payoff is capped at what a diligent real student would earn. It keeps card content private, credits phone reviews whenever the desktop syncs, and costs about 4 days.
 
 What it still can't stop (say this plainly to testers and to Conner):
-- A player who writes a convincing fake-review script, or runs a randomized auto-clicker on a real deck.
+- A player who forges a realistic collection and posts convincing fake reviews, or runs a randomized auto-clicker on a real deck.
 - A player who honestly taps through a trivial deck. That costs real time, but they learn nothing.
 - Someone else doing the reviews.
 - Any data faked on the player's own computer that stays within normal-looking patterns. The client can't be trusted, and no Anki or AnkiWeb source exists to check against.

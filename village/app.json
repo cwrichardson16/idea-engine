@@ -1,1 +1,10 @@
-{"game": {"assets": true, "data": {"crate": "village-data", "type": "Supa"}}}
+{
+  "game": {
+    "assets": true,
+    "data": {
+      "crate": "village-data",
+      "type": "Supa"
+    }
+  },
+  "title": "Stonehaven"
+}

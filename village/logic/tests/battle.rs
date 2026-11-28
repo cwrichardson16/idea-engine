@@ -16,7 +16,7 @@ fn plan(kind: Kind, x: i32, z: i32) -> Plan {
 }
 
 #[test]
-fn fighters_clear_the_free_clinic_and_take_all_its_loot() {
+fn fighters_clear_the_bandit_camp_and_take_all_its_loot() {
     let mut b = Battle::new(0, vec![6, 0, 0], 0);
     for i in 0..6 {
         b.deploy(Troop::Fighter, 2 + i, 2).unwrap();
@@ -131,7 +131,7 @@ fn drops_inside_the_red_border_or_off_the_map_are_refused() {
     // The Town Hall sits at (13, 13); one tile around it is the border.
     assert_eq!(b.can_deploy(Troop::Fighter, 12, 12), Err("Too close: drop outside the red border".into()));
     assert_eq!(b.can_deploy(Troop::Fighter, -1, 0), Err("Off the map".into()));
-    assert_eq!(b.can_deploy(Troop::Archer, 0, 0), Err("No Pharmacists left".into()));
+    assert_eq!(b.can_deploy(Troop::Archer, 0, 0), Err("No Bowmen left".into()));
     assert!(b.can_deploy(Troop::Fighter, 0, 0).is_ok());
 }
 

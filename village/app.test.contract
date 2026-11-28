@@ -5,8 +5,8 @@ test "Play starts the village with its HUD"
   tap "play"
   expect tree has "world"
   clock +500
-  expect text "hud-gold" == "💵 500 / 1000"
-  expect text "hud-th" == "🏥 Hospital 1"
+  expect text "hud-gold" == "🪙 500 / 1000"
+  expect text "hud-th" == "🏰 Keep 1"
   expect tree missing "dev-rich"
   expect tree missing "review"
 
@@ -20,9 +20,9 @@ test "Buying then cancelling spends nothing"
   expect tree has "placing"
   tap "cancel"
   clock +200
-  expect text "hud-elixir" == "☕ 500 / 1000"
+  expect text "hud-elixir" == "🌾 500 / 1000"
 
-test "Five taps on the Hospital badge unlock the dev shortcuts"
+test "Five taps on the Keep badge unlock the dev shortcuts"
   tap "play"
   clock +500
   tap "hud-th"
@@ -33,7 +33,7 @@ test "Five taps on the Hospital badge unlock the dev shortcuts"
   clock +200
   tap "dev-th"
   clock +200
-  expect text "hud-th" == "🏥 Hospital 2"
+  expect text "hud-th" == "🏰 Keep 2"
 
 test "A raid: pick a camp, drop troops, see the result, go home"
   tap "play"
