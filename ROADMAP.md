@@ -130,3 +130,11 @@ Every step also needs: `bun exact.mjs test-rust` green, `contract build --json` 
 - Baseline median counts all 30 days, including zero-review days.
 - Phone fps bar: if a mid-range Android is under 20 fps, first retry at the engine's lower quality setting before calling it a fail (the engine's starter runs ~16 fps on a Pixel 5). If no on-screen fps counter exists, step 2 adds one behind dev mode.
 - Daily database backup needs the database password: a Conner item (or rely on the free plan's backups if confirmed).
+
+## Round 3 amendments (technical reviewer SHIP)
+- Phone smoothness: the game itself shows an fps number in dev mode (release builds strip engine overlays); otherwise judge by eye.
+- Playtest backup: a daily JSON export via SQL (pg_dump isn't installed), unless Conner provides the database password.
+- Step 6 test: a defender's loot loss floors at 0 when they already spent the gold.
+- Step 6: opponents see only the base layout, so the server extracts the buildings section from the save (extra work, counted in step 6).
+
+Status: both reviewers SHIP after 3 rounds (2026-11-28). Awaiting Conner's approval to start the loop.

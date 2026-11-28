@@ -55,3 +55,28 @@ S8. Finish line 3's "< 10 s" needs a definition: the `web-build --release` artif
 - Loop rules: one writer, a 3-round review cap, heavy jobs one at a time, the 2-failed-fixes stop, commit and push to the branch, and STATE evidence pointers are all sound. The private-link deploy and the free Supabase project are approved (STATE.md "Conner approvals"). The UNVERIFIED part is whether "a tuning table we can change without a release" (ROADMAP.md:25) has a mechanism. Exact `TABLES` are baked assets (game/README.md:1163-1170), so changing one on the static host means a redeploy, and it must also satisfy B1.
 
 VERDICT: BLOCK (B1 and B2 are short text additions to step 1, step 2 and finish line 3; after that, SHIP)
+
+---
+
+# Round 3 (re-review of ROADMAP v2 + GOAL-LOOP v2)
+
+## Round-2 findings, now addressed: all CONFIRMED in the text
+- B1 save safety: ROADMAP.md:33-37 adds the three tests: frozen saves from every format, clamp instead of refuse, a failed load never uploads. Lines 37 and 118 add the SAVE_CONTRACT rule (bump + migration + frozen string), including during the test week. GOAL-LOOP finish line 7 adds the tests.
+- B2 real phones: step 2 has an iPhone + Android gate (ROADMAP.md:51-52) and a decision if the iPhone fails. Finish line 3 has the real-phone runs (GOAL-LOOP.md:11).
+- S1 PvP server work: the pieces are listed (ROADMAP.md:75-79). Raid events must pass the data crate, which today drops them (data/src/lib.rs:106).
+- S2 periodic re-fetch: every 60 s, with a 90 s no-reload proof (ROADMAP.md:66, 79). It fits the code: the step loop sends only when `pending == 0` (cloud.rs:126), so a refetch can't drop an in-flight save reply. After the first sync, a fetch takes the cloud save only when its version is higher (cloud.rs:376).
+- S3/S4: animations move to step 8. Step 3's fixed-seed test locks damage timing to battle.rs (ROADMAP.md:55, 86).
+- S5 balance sim: a fixed builder and attacker strategy with numeric pass bars (ROADMAP.md:39-43).
+- S7 owner items: listed up front (GOAL-LOOP.md:29).
+- S8 load time: release build, cold cache, Fast 4G, 4× CPU, measured to a tappable Keep (ROADMAP.md:49).
+
+## New, non-blocking
+- N1. The phone pass bar asks for "fps (dev overlay)" (ROADMAP.md:51). I found no fps overlay in the engine docs (grep "fps|overlay" in game/README.md hits only max_fps and particle fps), and production-trust builds omit dev markers (game/README.md:669). UNVERIFIED that one exists. Fix: show fps in a debug chip the game draws itself, or use pass = "smooth to the eye + seconds to the village".
+- N2. Phase P plans a `pg_dump` backup (ROADMAP.md:117). pg_dump is not installed (`which pg_dump`: not found). The supabase CLI is present but needs the database password. Fix: make it a JSON export of the playtest tables through SQL, or install pg_dump on day 0.
+- N3. Step 6's test checks that loot is applied once but not saturation. If the defender spent gold before the raid event arrives, the loss must stop at 0 (gold is u32). Add a test where the event is larger than the current gold. UNVERIFIED, because the code isn't written yet.
+- N4. The step 6 SQL check says opponents get the "layout, never A's save text" (ROADMAP.md:77). The RPC therefore has to return only the building section (split on ';' or '#' in SQL), which is work beyond a plain select. It is feasible, and the 4–5 days probably absorb it.
+
+## Proxy check
+Each done-check ends at a source: a test with stated values, SQL row counts, a Chrome screenshot of a stated state, or a phone result from Conner. Weakening a check requires telling Conner (ROADMAP.md:28; GOAL-LOOP.md:7, 24). I found no check that a status name or green test alone can satisfy.
+
+VERDICT (round 3): SHIP
