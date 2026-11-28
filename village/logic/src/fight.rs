@@ -300,10 +300,10 @@ pub fn draw_units(w: &mut World) {
 
 /// Bar sizes in world units: a building's bar is most of its width, a troop's
 /// about a tile; both thick enough to read on a phone.
-const BAR_H_BUILDING: f32 = 0.34;
-const BAR_H_TROOP: f32 = 0.22;
-const BAR_W_TROOP: f32 = 1.0;
-const BAR_EDGE: f32 = 0.05;
+const BAR_H_BUILDING: f32 = 0.5;
+const BAR_H_TROOP: f32 = 0.34;
+const BAR_W_TROOP: f32 = 1.2;
+const BAR_EDGE: f32 = 0.08;
 
 /// Where troop `i` is drawn, in world units (its spot plus the small per-index
 /// nudge `draw_units` uses).
@@ -336,9 +336,10 @@ pub fn wanted_bars(b: &Battle) -> Vec<(bool, u32, Vec3, f32, f32, f32)> {
         if u.alive() && u.hp < max {
             let (x, z) = unit_spot(i, u.x, u.z);
             let top = match u.troop {
-                Troop::Brute => 2.4,
-                Troop::Fighter => 1.7,
-                Troop::Archer => 1.6,
+                // Above the big-headed Knight's helmet at the steep camera.
+                Troop::Brute => 3.0,
+                Troop::Fighter => 2.9,
+                Troop::Archer => 2.4,
             };
             out.push((true, i as u32, Vec3::new(x, top, z), BAR_W_TROOP, BAR_H_TROOP, u.hp as f32 / max as f32));
         }
@@ -346,13 +347,19 @@ pub fn wanted_bars(b: &Battle) -> Vec<(bool, u32, Vec3, f32, f32, f32)> {
     out
 }
 
+/// A matte, glow-free colour: emission and shine wash a small bar out to
+/// pastel under the village's bright light (seen in the 390×844 shots).
+fn matte(css: &str) -> Material {
+    Material { roughness: 1.0, ..Material::hex(css) }
+}
+
 fn bar_fill_look(unit: bool) -> Material {
     if unit {
-        // The player's troops: bright green.
-        Material::hex("#3ddc4a").emissive(0.12, 0.55, 0.15)
+        // The player's troops: green.
+        matte("#00e04a")
     } else {
         // The enemy's buildings: red.
-        Material::hex("#ff3b30").emissive(0.6, 0.08, 0.05)
+        matte("#e01010")
     }
 }
 
@@ -386,7 +393,7 @@ pub fn draw_fx(w: &mut World, facing: Quat) {
                 let back = w.spawn((
                     Transform::at(top.x, top.y, top.z),
                     Mesh::cuboid(Vec3::new(width, height, 0.04)),
-                    Material::hex("#121212"),
+                    matte("#000000"),
                 ));
                 let inner = Vec3::new(width - 2.0 * BAR_EDGE, height - 2.0 * BAR_EDGE, 0.04);
                 let fill = w.spawn((Transform::at(top.x, top.y, top.z), Mesh::cuboid(inner), bar_fill_look(unit)));
@@ -416,17 +423,20 @@ pub fn draw_fx(w: &mut World, facing: Quat) {
         for s in &new_shots {
             let (fx, fz) = world_xz(s.from_x, s.from_z);
             let (tx, tz) = world_xz(s.to_x, s.to_z);
-            let from = Vec3::new(fx, if s.ball { 1.1 } else { 1.0 }, fz);
-            let to = Vec3::new(tx, if s.ball { 0.5 } else { 0.9 }, tz);
+            // Leaves the cannon's mouth or the bow above the model, lands on the target.
+            let from = Vec3::new(fx, if s.ball { 1.6 } else { 1.3 }, fz);
+            let to = Vec3::new(tx, if s.ball { 0.8 } else { 1.0 }, tz);
             // Arrows fly 14 tiles a second, cannonballs 9.
             let speed = if s.ball { 9.0 } else { 14.0 };
-            let ticks = ((from.distance(to) / speed * TPS as f32) as u32).max(4);
+            // At least a third of a second in the air, so even a point-blank
+            // shot is seen.
+            let ticks = ((from.distance(to) / speed * TPS as f32) as u32).max(10);
             let yaw = exact_game::math::atan2(to.x - from.x, to.z - from.z);
             let entity = if s.ball {
                 w.spawn((
                     Transform::at(from.x, from.y, from.z),
-                    Mesh::sphere(0.26),
-                    Material::hex("#2b2b2b").emissive(0.35, 0.2, 0.05),
+                    Mesh::sphere(0.34),
+                    Material::hex("#1a1a1a").emissive(1.0, 0.45, 0.05),
                 ))
             } else {
                 let mut t = Transform::at(from.x, from.y, from.z);
@@ -447,7 +457,7 @@ pub fn draw_fx(w: &mut World, facing: Quat) {
     });
     for fly in &flying {
         let k = (tick.saturating_sub(fly.born) as f32 / fly.ticks as f32).clamp(0.0, 1.0);
-        let lift = if fly.ball { 1.2 } else { 0.35 } * 4.0 * k * (1.0 - k);
+        let lift = if fly.ball { 1.8 } else { 0.5 } * 4.0 * k * (1.0 - k);
         let at = fly.from.lerp(fly.to, k) + Vec3::Y * lift;
         w.get_mut::<Transform>(fly.entity).unwrap().position = at;
     }

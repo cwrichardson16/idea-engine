@@ -216,7 +216,8 @@ component Village
               text `🔨 ${hud.builders_free}/${hud.builders}` testId="hud-builders" padding=10 border-radius=10 background-color="#202731cc" box-shadow="inset 0 -4px 0 #00000055, 0 2px 0 #00000088" border-width=2 border-style="solid" border-color="#00000066"
               button press=devTap testId="hud-th" aria-label=`Keep level ${hud.town_hall}` padding=10 border-radius=10 background-color="#202731cc" box-shadow="inset 0 -4px 0 #00000055, 0 2px 0 #00000088" border-width=2 border-style="solid" border-color="#00000066"
                 text `🏰 Keep ${hud.town_hall}`
-            if devMode
+            // Dev shortcuts; hidden in a raid so they don't cover the battlefield.
+            if devMode and not hud.raiding
               row gap=10
                 button press=send("dev rich") testId="dev-rich" aria-label="Dev: fill storage" padding=10 border-radius=10 background-color="#5d4037" box-shadow="inset 0 -4px 0 #00000055, 0 2px 0 #00000088" border-width=2 border-style="solid" border-color="#00000066"
                   text "Dev +5000"
@@ -342,9 +343,9 @@ component Village
                     text `${d.name} ×${d.count}`
             button press=send("surrender") testId="surrender" position="absolute" bottom=24 right=24 padding=14 border-radius=12 background-color="#8e2b2b"
               text "🏳 Surrender"
-            // Dev only: drop one of the selected troop north of the camp (page tests, screenshots).
+            // Dev only: drop one of the selected troop beside the camp's cannon (page tests, screenshots).
             if devMode
-              button press=send("tap 14 4") testId="dev-drop" aria-label="Dev: drop a troop" position="absolute" bottom=96 right=24 padding=10 border-radius=10 background-color="#5d4037"
+              button press=send("tap 18 9") testId="dev-drop" aria-label="Dev: drop a troop" position="absolute" bottom=96 right=24 padding=10 border-radius=10 background-color="#5d4037"
                 text "Dev drop"
           if hud.has_result
             column testId="result" position="absolute" top="50%" left="50%" transform="translate(-50%, -50%)" width="20rem" gap=12 padding=20 border-radius=16 background-color="#202731f5" align-items="center"
