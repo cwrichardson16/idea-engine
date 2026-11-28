@@ -4,6 +4,7 @@
 
 pub mod battle;
 pub mod economy;
+pub mod fight;
 
 use economy::{Kind, Pay, Res, Town, Troop, GRID, KINDS, TROOPS};
 use exact_game::*;
@@ -150,6 +151,26 @@ pub struct TrainRow {
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Data)]
+pub struct CampRow {
+    pub index: u32,
+    pub name: String,
+    /// Best stars won here, 0 to 3.
+    pub stars: u32,
+    pub defenses: u32,
+    /// Why it can't be attacked now; empty when it can.
+    pub reason: String,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Data)]
+pub struct DeployRow {
+    pub index: u32,
+    pub name: String,
+    /// Still to drop in this raid.
+    pub count: u32,
+    pub selected: bool,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Data)]
 pub struct Hud {
     pub gold: u32,
     pub gold_cap: u32,
@@ -177,6 +198,22 @@ pub struct Hud {
     pub training_left: u32,
     /// The name of the troop training now; empty when none.
     pub training: String,
+    pub campaign: Vec<CampRow>,
+    /// In a raid (including its result screen).
+    pub raiding: bool,
+    pub raid_camp: String,
+    pub raid_secs: u32,
+    pub raid_percent: u32,
+    pub raid_stars: u32,
+    pub raid_gold: u32,
+    pub raid_elixir: u32,
+    pub deploy: Vec<DeployRow>,
+    pub has_result: bool,
+    pub result_stars: u32,
+    pub result_percent: u32,
+    pub result_gold: u32,
+    pub result_elixir: u32,
+    pub result_used: u32,
 }
 
 pub const HZ: u32 = 30;
@@ -273,6 +310,7 @@ impl Game for Village {
         w.insert_resource(Ui::default());
         w.insert_resource(CamView::home());
         w.insert_resource(Shown::default());
+        w.insert_resource(fight::Fight::default());
         draw(w);
     }
 
@@ -294,6 +332,7 @@ impl Game for Village {
         }
         steer(w, input);
         taps(w, input);
+        fight::step(w);
         save(w);
         if w.resource::<Town>().builders_busy() > 0 {
             w.busy("builders at work");
@@ -410,6 +449,30 @@ pub fn command(w: &mut World, cmd: &str) {
     let mut words = cmd.split_whitespace();
     let verb = words.next().unwrap_or("");
     let arg = words.next().unwrap_or("");
+    match fight::command(w, verb, arg) {
+        Err(why) => return toast(w, why),
+        Ok(true) => {
+            // A raid starts with nothing placed or selected.
+            let mut ui = w.resource_mut::<Ui>();
+            ui.placing.clear();
+            ui.selected = 0;
+            return;
+        }
+        // During a raid, village commands (buy, upgrade, skip…) do nothing;
+        // a tap drops the selected troop.
+        Ok(false) if fight::active(w) => {
+            if verb == "tap" {
+                let z = words.next().and_then(|s| s.parse().ok());
+                if let (Ok(x), Some(z)) = (arg.parse(), z) {
+                    if let Err(why) = fight::deploy_at(w, x, z) {
+                        toast(w, why);
+                    }
+                }
+            }
+            return;
+        }
+        Ok(false) => {}
+    }
     let selected = w.resource::<Ui>().selected;
     match verb {
         "buy" => {
@@ -620,7 +683,13 @@ fn taps(w: &mut World, input: &Input) {
         }
         let hit = tile_at(view, e.position, &w.resource::<CamView>());
         if let Some((x, z)) = hit {
-            tap_tile(w, x, z);
+            if fight::active(w) {
+                if let Err(why) = fight::deploy_at(w, x, z) {
+                    toast(w, why);
+                }
+            } else {
+                tap_tile(w, x, z);
+            }
         }
     }
 }
@@ -833,20 +902,35 @@ fn draw(w: &mut World) {
         w.resource_mut::<Shown>().grid_lines = lines;
         *w.require_mut::<Material>("grid") = grid_look(lines);
     }
-    // Buildings.
-    let wanted: Vec<(u32, String, Kind, i32, i32, u8, bool, bool)> = w
-        .resource::<Town>()
-        .buildings
-        .iter()
-        .map(|b| {
-            let ready = b
-                .kind
-                .production(b.level)
-                .is_some_and(|(_, _, holds)| u64::from(b.waiting(now)) * 10 >= holds);
-            let sig = format!("{:?}{}{}{}{}", b.kind, b.level, b.busy(), ready, b.id == selected);
-            (b.id, sig, b.kind, b.x, b.z, b.level, b.busy(), ready)
-        })
-        .collect();
+    // Buildings: the village's, or during a raid the camp's (ids from 1000;
+    // a destroyed one is rubble, and each sits on its red no-drop border).
+    let raid: Option<Vec<(Kind, u8, i32, i32, bool)>> = w
+        .resource::<fight::Fight>()
+        .battle
+        .as_ref()
+        .map(|b| b.targets.iter().map(|t| (t.kind, t.level, t.x, t.z, t.alive())).collect());
+    let wanted: Vec<(u32, String, Kind, i32, i32, u8, bool, bool)> = match &raid {
+        Some(targets) => targets
+            .iter()
+            .enumerate()
+            .map(|(i, &(kind, level, x, z, alive))| {
+                (1000 + i as u32, format!("raid{kind:?}{level}{x},{z}{alive}"), kind, x, z, level, false, alive)
+            })
+            .collect(),
+        None => w
+            .resource::<Town>()
+            .buildings
+            .iter()
+            .map(|b| {
+                let ready = b
+                    .kind
+                    .production(b.level)
+                    .is_some_and(|(_, _, holds)| u64::from(b.waiting(now)) * 10 >= holds);
+                let sig = format!("{:?}{}{}{}{}", b.kind, b.level, b.busy(), ready, b.id == selected);
+                (b.id, sig, b.kind, b.x, b.z, b.level, b.busy(), ready)
+            })
+            .collect(),
+    };
     let mut shown = std::mem::take(&mut w.resource_mut::<Shown>().buildings);
     shown.retain(|d| {
         let keep = wanted.iter().any(|(id, sig, ..)| *id == d.id && *sig == d.sig);
@@ -861,7 +945,28 @@ fn draw(w: &mut World) {
         if shown.iter().any(|d| d.id == id) {
             continue;
         }
-        let mut parts = spawn_building(w, kind, x, z, level, busy, ready, None);
+        let mut parts = if id >= 1000 {
+            // A camp building: `ready` carries whether it still stands.
+            let (cx, cz) = centre(x, z, kind.size());
+            let s = kind.size() as f32;
+            let mut parts = if ready {
+                spawn_building(w, kind, x, z, level, false, false, None)
+            } else {
+                vec![w.spawn((
+                    Transform::at(cx, 0.15, cz),
+                    Mesh::cuboid(Vec3::new(s - 0.6, 0.3, s - 0.6)),
+                    Material::hex("#5d4037"),
+                ))]
+            };
+            parts.push(w.spawn((
+                Transform::at(cx, 0.008, cz),
+                Mesh::plane(s + 2.0, s + 2.0),
+                Material::hex("#e53935").emissive(0.35, 0.05, 0.05),
+            )));
+            parts
+        } else {
+            spawn_building(w, kind, x, z, level, busy, ready, None)
+        };
         if id == selected {
             let (cx, cz) = centre(x, z, kind.size());
             let s = kind.size() as f32;
@@ -910,6 +1015,8 @@ fn draw(w: &mut World) {
         s.ghost = ghost;
         s.ghost_sig = ghost_sig;
     }
+
+    fight::draw_units(w);
 
     // The HUD.
     let hud = hud(w, now, place_reason);
@@ -1014,5 +1121,49 @@ pub fn hud(w: &World, now: u64, place_reason: String) -> Hud {
         queue: town.queue.iter().map(|t| t.name().to_string()).collect(),
         training_left: town.training_left(now) as u32,
         training: town.queue.first().map(|t| t.name().to_string()).unwrap_or_default(),
+        campaign: battle::CAMPS
+            .iter()
+            .enumerate()
+            .map(|(i, (name, plan))| CampRow {
+                index: i as u32,
+                name: (*name).into(),
+                stars: u32::from(town.stars.get(i).copied().unwrap_or(0)),
+                defenses: plan.iter().filter(|p| p.kind.is_defense()).count() as u32,
+                reason: fight::can_attack(w, i).err().unwrap_or_default(),
+            })
+            .collect(),
+        ..raid_hud(w)
+    }
+}
+
+/// The raid part of the HUD (all zero outside a raid).
+fn raid_hud(w: &World) -> Hud {
+    let f = w.resource::<fight::Fight>();
+    let Some(b) = &f.battle else { return Hud::default() };
+    let r = f.result.clone().unwrap_or_default();
+    Hud {
+        raiding: true,
+        raid_camp: battle::CAMPS[(b.camp as usize).min(battle::CAMPS.len() - 1)].0.into(),
+        raid_secs: b.ticks_left().div_ceil(battle::TPS),
+        raid_percent: b.percent(),
+        raid_stars: u32::from(b.stars()),
+        raid_gold: b.gold,
+        raid_elixir: b.elixir,
+        deploy: TROOPS
+            .iter()
+            .map(|&t| DeployRow {
+                index: t.index() as u32,
+                name: t.name().into(),
+                count: b.reserve.get(t.index()).copied().unwrap_or(0),
+                selected: f.troop as usize == t.index(),
+            })
+            .collect(),
+        has_result: f.result.is_some(),
+        result_stars: u32::from(r.stars),
+        result_percent: r.percent,
+        result_gold: r.gold,
+        result_elixir: r.elixir,
+        result_used: r.used,
+        ..Hud::default()
     }
 }

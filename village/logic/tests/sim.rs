@@ -656,3 +656,99 @@ fn dev_shortcuts_fill_storage_and_raise_the_town_hall() {
     assert_eq!(t.town_hall_level(), 2);
     assert_eq!(Kind::ArcherTower.max_count(t.town_hall_level()), 1);
 }
+
+// ---- Raids (SPEC-2 G5/G6) ----
+
+fn raid_world() -> Sim<Village> {
+    let mut sim = Sim::<Village>::new(Options::default()).unwrap();
+    sim.run(50.0);
+    let mut t = army_town();
+    t.army = vec![8, 0, 0];
+    *sim.world_mut().resource_mut::<Town>() = t;
+    sim
+}
+
+#[test]
+fn a_raid_needs_troops() {
+    let mut sim = Sim::<Village>::new(Options::default()).unwrap();
+    sim.run(50.0);
+    command(sim.world_mut(), "attack 0");
+    assert!(!fight::active(sim.world()));
+    assert_eq!(sim.world().resource::<Ui>().toast, "Train some troops first");
+}
+
+#[test]
+fn a_whole_raid_takes_troops_brings_loot_home_and_keeps_stars() {
+    let mut sim = raid_world();
+    let gold_before = sim.world().resource::<Town>().gold;
+    command(sim.world_mut(), "attack 0");
+    assert!(fight::active(sim.world()));
+    // Inside the red border is refused and takes nothing.
+    command(sim.world_mut(), "tap 13 13");
+    assert_eq!(sim.world().resource::<Town>().army[0], 8);
+    for x in 0..8 {
+        command(sim.world_mut(), &format!("tap {x} 0"));
+    }
+    assert_eq!(sim.world().resource::<Town>().army[0], 0, "dropped troops leave the army at once");
+    // Village commands do nothing mid-raid.
+    let gems = sim.world().resource::<Town>().gems;
+    command(sim.world_mut(), "skip gems");
+    command(sim.world_mut(), "buy goldmine");
+    assert_eq!(sim.world().resource::<Town>().gems, gems);
+    assert!(sim.world().resource::<Ui>().placing.is_empty());
+    // Fight it out (2.5 minutes at most).
+    sim.run(160_000.0);
+    let r = sim.world().resource::<fight::Fight>().result.clone().expect("the raid ended");
+    assert_eq!((r.stars, r.percent, r.used), (3, 100, 8));
+    let town = sim.world().resource::<Town>();
+    assert_eq!(town.gold, gold_before + r.gold);
+    assert_eq!((town.stars[0], town.looted[0]), (3, 0b11111));
+    drop(town);
+    let hud = hud(sim.world(), now_ms(sim.world()), String::new());
+    assert!(hud.has_result && hud.result_stars == 3);
+    command(sim.world_mut(), "home");
+    assert!(!fight::active(sim.world()));
+    assert_eq!(hud_after(&sim).campaign[0].stars, 3);
+}
+
+fn hud_after(sim: &Sim<Village>) -> Hud {
+    hud(sim.world(), now_ms(sim.world()), String::new())
+}
+
+#[test]
+fn surrender_ends_the_raid_with_what_was_won() {
+    let mut sim = raid_world();
+    command(sim.world_mut(), "attack 1");
+    command(sim.world_mut(), "tap 0 0");
+    command(sim.world_mut(), "surrender");
+    sim.run(100.0);
+    let r = sim.world().resource::<fight::Fight>().result.clone().unwrap();
+    assert_eq!((r.stars, r.used), (0, 1));
+    assert_eq!(sim.world().resource::<Town>().army[0], 7);
+}
+
+#[test]
+fn time_away_does_not_move_the_raid_clock() {
+    let mut sim = raid_world();
+    command(sim.world_mut(), "attack 0");
+    command(sim.world_mut(), "tap 0 0");
+    let before = sim.world().resource::<fight::Fight>().battle.as_ref().unwrap().tick;
+    away(sim.world_mut(), 3_600_000);
+    let after = sim.world().resource::<fight::Fight>().battle.as_ref().unwrap().tick;
+    assert_eq!(before, after);
+    // Every published raid number is sane.
+    let h = hud_after(&sim);
+    assert!(h.raiding && h.raid_secs <= 150 && h.raid_percent <= 100 && h.raid_stars <= 3);
+}
+
+#[test]
+fn a_save_mid_raid_keeps_the_army_reduced_and_brings_no_loot() {
+    let mut sim = raid_world();
+    command(sim.world_mut(), "attack 0");
+    command(sim.world_mut(), "tap 0 0");
+    command(sim.world_mut(), "tap 1 0");
+    let text = sim.world().resource::<Town>().encode();
+    let back = Town::decode(&text).unwrap();
+    assert_eq!(back.army[0], 6);
+    assert_eq!(back.stars[0], 0);
+}
