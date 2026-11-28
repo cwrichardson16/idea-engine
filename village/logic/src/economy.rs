@@ -1058,7 +1058,11 @@ impl Town {
                 let pay = base + base * streak / 10;
                 let g = self.earn(Res::Gold, pay);
                 let e = self.earn(Res::Elixir, pay);
-                said.push(format!("🎁 Chest {}: +{g} 💵 +{e} ☕", i + 1));
+                said.push(if g + e == 0 {
+                    format!("🎁 Chest {} opened, but storage is full: spend some first next time", i + 1)
+                } else {
+                    format!("🎁 Chest {}: +{g} 💵 +{e} ☕", i + 1)
+                });
             }
         }
         let due = (after / POWER_REVIEWS).min(POWER_HOURS_MAX);
