@@ -171,3 +171,9 @@ What it still can't stop (say this plainly to testers and to Conner):
 - Any data faked on the player's own computer that stays within normal-looking patterns. The client can't be trusted, and no Anki or AnkiWeb source exists to check against.
 
 The defenses are caps, a ramp, checks against the schedule, and human review of flags, not proof.
+
+## Final amendments (adversarial review round 2: SHIP with these)
+1. **Backfill queue.** Rows over the per-arrival-day backfill budget are stored uncredited with `reason='budget'` and re-checked on every later arrival day, oldest first, until credited or past their own day's cap. Honest weekly phone-syncers lose nothing; they are just paid out over a few days. Ramp review-days count from row timestamps, including queued rows that later credit.
+2. **Growth rule applies to Good and Easy only (ease 3, 4).** Anki can honestly keep a 1-day card at 1 day on Hard (review.rs `.max(1)`), so Hard reviews are credited without the growth check; Good/Easy always land on 2+ days under SM-2 and FSRS, so the stuck-card flag can't misfire on them.
+3. Known floor (accepted): an imported big scheduled collection + a randomised auto-answer add-on passes every rule and reaches the cap after the ~24-day ramp. Only human review of flags and the cap limit this.
+4. To check while building: the add-on API name for today's Anki day (`col.sched.today`) in a real Anki.
