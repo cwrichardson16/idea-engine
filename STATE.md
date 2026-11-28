@@ -115,3 +115,4 @@ Each step: tests + Chrome check + reviewer + commit/push on the feature branch. 
 - T3 skeptic r2 BLOCK: token expiry → refetch adopted own older upload. FIXED 2a50c7c (after first sync only a higher cloud version replaces; test). 70 tests. Round 3 pending.
 - Chrome 2026-11-28 01:20: NO requests reached Supabase (DB empty, no cred in localStorage) — dev server had been started before app.json gained game.data; restarted (task bg0bi7lt3). Re-check: play → players/saves rows appear; localStorage exact.state.cred set; cloud chip shows.
 - Seen at a 614 px wide window: HUD chips overlap (top bar wraps over the study panel and dev row; Staff button under Raid) → T5 phone layout must fix.
+- T3 skeptic r3: VERDICT SHIP (2a50c7c). TODO small hardening after the dev build: Fetch step waits while fight::active always (not only take_cloud). Known accepted: lost save reply → ≤15 s of play lost on the following conflict.
