@@ -3,7 +3,7 @@
 ## Slice 2 (SPEC-2.md, pressure-tested over 2 rounds, commit after a88dd52)
 - Phase A: camera, look, army buildings, home defenses, save v2.
 - Phase B: battle sim, campaign, battle and result screens.
-- [ ] G1 camera  - [ ] G2 look  - [ ] G3 army buildings  - [ ] G4 defenses  - [ ] G5 battle sim  - [ ] G6 battle UI  - [ ] G7 save v2
+- [x] G1 camera  - [~] G2 look (TH, hut, scenery done; mines, storages and new kinds still to do)  - [ ] G3 army buildings  - [ ] G4 defenses  - [ ] G5 battle sim  - [ ] G6 battle UI  - [ ] G7 save v2
 - Art:
   - ~/Downloads/kenney_castle-kit.zip (CC0, 2.2 MB, 76 GLB models).
   - The Fantasy Town and Nature kit downloads didn't land; Chrome likely blocked repeat downloads.
@@ -16,7 +16,7 @@
     - Tests needing a world save use `let mut sim: Sim<Village> = exact_game::sim_with_art!(Options::default()).unwrap();`. That proves the bake accepts the models.
   - The web dev server was restarted (task bn4m8xc30, log ~/Projects/idea-engine-web.log). A cold build with assets was in progress at 5:24 PM; wait for "plan ready".
 - Next:
-  1. Chrome: models render, drag pans, wheel zooms, a tap still selects after panning. If models don't render after this one build, fall back to shapes (SPEC-2 premortem 5).
+  1. DONE 2026-11-27, Chrome: the models render (Town Hall tower, trees, rocks), drag pans, the wheel zooms (scroll up zooms in), and a tap selects the TH after zooming. Screenshots: /var/folders/_s/dk7yz8xd5fg6j8rbsq5_1rj40000gn/T/claude-chrome-screenshots-OsU5ko/screenshot-17958257*. The web rebuild with assets took about 3 min.
   2. G3/G4: append Barracks, ArmyCamp, Cannon, ArcherTower to the END of KINDS (numbers in SPEC-2). Add an Army (trained counts plus a training queue with started_at) to Town; finish training in settle/away; housing counts the queue; cancel refunds. Add dev commands `dev rich` and `dev th`. Models: cannon = siege-catapult, archer tower = hex base + ballista.
   3. G7 save v2: freeze a literal v1 string test first, bump SAVE_CONTRACT, rewrite the "v2 refused" test (sim.rs ~416).
   4. Rewrite app.test.contract; run `bun exact.mjs test web`.
