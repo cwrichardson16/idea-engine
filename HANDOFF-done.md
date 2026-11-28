@@ -1,5 +1,5 @@
 session: 2450836a-499e-482d-919d-4a3f50256f74
-Mid-flight: slice 2, phase A (SPEC-2.md). G1 camera is verified in Chrome. G2 models render.
-Dev server: running (bun exact.mjs web --port 8765 from village/, log ~/Projects/idea-engine-web.log). Chrome tab group is new; use tabs_context_mcp.
-Exact next action: STATE.md "Next" step 2. Add Barracks, ArmyCamp, Cannon and ArcherTower to the END of KINDS in village/logic/src/economy.rs, plus Army/training (numbers and rules in SPEC-2.md), dev commands, and tests in village/logic/tests/sim.rs. Then step 3 (save v2).
-Conner wants autonomy: build and loop to the SPEC-2 finish line. Only ask him for "always ask" items.
+Mid-flight: SESSION GOAL in STATE.md (Phase B battles end to end). Look pass 2 and design direction are done and pushed (a72df70 + design commits).
+Dev server: running in background (bun exact.mjs web --port 8765 from village/, log ~/Projects/idea-engine-web.log). Chrome tab 1323054085.
+Exact next action: step (1) retune numbers off Clash in village/logic/src/economy.rs (troop HP/dps/cost/housing, building costs/housing, cannon/archer tower stats) and SPEC-2.md numbers table; keep tests green. Then step (2): copy scratchpad battle.rs (/private/tmp/claude-501/-Users-connerrichardson-Projects-idea-engine/2450836a-499e-482d-919d-4a3f50256f74/scratchpad/battle.rs; if gone, rewrite from SPEC-2) into village/logic/src/battle.rs with `pub mod battle;`, camps encoded in Town layout text.
+Conner wants autonomy: loop to the goal; only ask for always-ask items (e.g. creating the Supabase project later).

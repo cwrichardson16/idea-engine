@@ -87,3 +87,9 @@ Steps: (1) DONE retune (economy.rs, SPEC-2, tests; battle stats in SPEC-2 table 
 6. Anki add-on sending review counts to Supabase
 7. private test link on a free host
 Each step: tests + Chrome check + reviewer + commit/push on the feature branch. Never main.
+
+## CURRENT GOAL: SPEC-3.md (ready for testers) — big-build loop, started 2026-11-28
+- Conner 2026-11-28: "just keep building ... if you take longer than tonight thats fine ... dont change up our plan whatever us and adv rev think ... no go until i give final go".
+  Meaning: build all of SPEC-3 (incl. approved free Supabase project + private link for our own verification), apply reviewer fixes, but DO NOT share the link with testers / call it launched until Conner gives the final go.
+- Pressure test: 2 reviewers running (technical "will it work" + product "what it misses"). Apply confirmed fixes to SPEC-3, then build T1→T7.
+- Pointer registered (set_pointer.py). Old HANDOFF moved to HANDOFF-done.md.
