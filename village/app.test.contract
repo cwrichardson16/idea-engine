@@ -26,3 +26,23 @@ test "Dev shortcut raises the Town Hall"
   tap "dev-th"
   clock +200
   expect text "hud-th" == "Town Hall 2"
+
+test "A raid: pick a camp, drop troops, see the result, go home"
+  tap "play"
+  clock +500
+  tap "raid-open"
+  expect tree has "campaign"
+  tap "dev-army"
+  clock +200
+  tap "attack-0"
+  clock +200
+  expect tree has "raid-top"
+  expect tree has "deploy"
+  expect tree has "surrender"
+  tap "surrender"
+  clock +300
+  expect tree has "result"
+  expect text "result-stars" == "⭐ 0 / 3 · 0% destroyed"
+  tap "home"
+  clock +200
+  expect tree has "raid-open"

@@ -551,6 +551,7 @@ pub fn command(w: &mut World, cmd: &str) {
         "dev" => match arg {
             "rich" => w.resource_mut::<Town>().dev_rich(),
             "th" => w.resource_mut::<Town>().dev_town_hall(now),
+            "army" => w.resource_mut::<Town>().dev_army(now),
             _ => {}
         },
         "away" => {

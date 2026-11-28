@@ -475,6 +475,19 @@ impl Town {
         }
     }
 
+    /// Dev only: an army camp if there is none, then fill it with Fighters.
+    pub fn dev_army(&mut self, now: u64) {
+        if self.count(Kind::ArmyCamp) == 0 {
+            if let Some((x, z)) = self.free_spot(Kind::ArmyCamp) {
+                let id = self.next_id;
+                self.next_id += 1;
+                self.buildings.push(Building { id, kind: Kind::ArmyCamp, level: 1, x, z, mark: now, ..Building::default() });
+            }
+        }
+        let room = self.housing_cap().saturating_sub(self.housing_used());
+        self.army[Troop::Fighter.index()] += room;
+    }
+
     pub fn get(&self, id: u32) -> Option<&Building> {
         self.buildings.iter().find(|b| b.id == id)
     }

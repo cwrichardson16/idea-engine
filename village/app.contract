@@ -32,6 +32,19 @@ shape TrainRow
   count: number
   reason: string
 
+shape CampRow
+  index: number
+  name: string
+  stars: number
+  defenses: number
+  reason: string
+
+shape DeployRow
+  index: number
+  name: string
+  count: number
+  selected: bool
+
 shape Hud
   gold: number
   gold_cap: number
@@ -55,6 +68,21 @@ shape Hud
   queue: string[]
   training_left: number
   training: string
+  campaign: CampRow[]
+  raiding: bool
+  raid_camp: string
+  raid_secs: number
+  raid_percent: number
+  raid_stars: number
+  raid_gold: number
+  raid_elixir: number
+  deploy: DeployRow[]
+  has_result: bool
+  result_stars: number
+  result_percent: number
+  result_gold: number
+  result_elixir: number
+  result_used: number
 
 shape Time
   epochAtZero: number
@@ -64,6 +92,7 @@ component Village
   state again = false
   state shopOpen = false
   state armyOpen = false
+  state campOpen = false
   // The village, kept by the page between visits (Rust writes it).
   state village = "" persist
   resource hud = exactSurface("world") as shape Hud
@@ -80,10 +109,21 @@ component Village
   action toggleShop
     shopOpen = not shopOpen
     armyOpen = false
+    campOpen = false
 
   action toggleArmy
     armyOpen = not armyOpen
     shopOpen = false
+    campOpen = false
+
+  action toggleCamp
+    campOpen = not campOpen
+    shopOpen = false
+    armyOpen = false
+
+  action attack(i: number)
+    campOpen = false
+    postMessage(`attack ${i}`, "world")
 
   action send(c: string)
     postMessage(c, "world")
@@ -108,6 +148,8 @@ component Village
             row gap=10
               button press=send("dev rich") testId="dev-rich" aria-label="Dev: fill storage" padding=10 border-radius=10 background-color="#5d4037" box-shadow="inset 0 -4px 0 #00000055, 0 2px 0 #00000088" border-width=2 border-style="solid" border-color="#00000066"
                 text "Dev +5000"
+              button press=send("dev army") testId="dev-army" aria-label="Dev: fill the army" padding=10 border-radius=10 background-color="#5d4037" box-shadow="inset 0 -4px 0 #00000055, 0 2px 0 #00000088" border-width=2 border-style="solid" border-color="#00000066"
+                text "Dev army"
               button press=send("dev th") testId="dev-th" aria-label="Dev: Town Hall up one" padding=10 border-radius=10 background-color="#5d4037" box-shadow="inset 0 -4px 0 #00000055, 0 2px 0 #00000088" border-width=2 border-style="solid" border-color="#00000066"
                 text "Dev TH+1"
               button press=send("review") testId="review" aria-label="Do a review (test)" padding=10 border-radius=10 background-color="#1f7a4d" box-shadow="inset 0 -4px 0 #00000055, 0 2px 0 #00000088" border-width=2 border-style="solid" border-color="#00000066"
@@ -126,7 +168,7 @@ component Village
                 button press=send("cancel") testId="cancel" padding=12 border-radius=10 background-color="#8e2b2b" box-shadow="inset 0 -4px 0 #00000055, 0 2px 0 #00000088" border-width=2 border-style="solid" border-color="#00000066"
                   text "✕ Cancel"
           // Selected building: info, upgrade, collect, speed-ups.
-          if hud.placing == "" and hud.has_selected
+          if hud.placing == "" and hud.has_selected and not hud.raiding
             column testId="selected" position="absolute" bottom=24 left=16 gap=8 align-items="center" padding=14 border-radius=12 background-color="#202731e6" min-width=300
               text (hud.selected.level == 0 ? `${hud.selected.name} (building…)` : `${hud.selected.name} · level ${hud.selected.level}`) testId="sel-name" font-size=18
               if hud.selected.left > 0
@@ -148,13 +190,13 @@ component Village
                 button press=send("cancel") testId="close" padding=10 border-radius=10 background-color="#455a64" box-shadow="inset 0 -4px 0 #00000055, 0 2px 0 #00000088" border-width=2 border-style="solid" border-color="#00000066"
                   text "Close"
           // Shop.
-          if hud.placing == ""
+          if hud.placing == "" and not hud.raiding
             button press=toggleShop testId="shop-open" aria-expanded=shopOpen position="absolute" bottom=24 right=24 padding=16 border-radius=14 background-color="#ef6c00" box-shadow="inset 0 -4px 0 #00000055, 0 2px 0 #00000088" border-width=2 border-style="solid" border-color="#00000066"
               text (shopOpen ? "Close shop" : "🏪 Shop") font-size=18
-          if hud.placing == "" and hud.has_barracks
+          if hud.placing == "" and hud.has_barracks and not hud.raiding
             button press=toggleArmy testId="army-open" aria-expanded=armyOpen position="absolute" bottom=24 right=170 padding=16 border-radius=14 background-color="#9e3b2e" box-shadow="inset 0 -4px 0 #00000055, 0 2px 0 #00000088" border-width=2 border-style="solid" border-color="#00000066"
               text (armyOpen ? "Close army" : `⚔️ Army ${hud.housing_used}/${hud.housing_cap}`) font-size=18
-          if armyOpen and hud.placing == ""
+          if armyOpen and hud.placing == "" and not hud.raiding
             column testId="army" position="absolute" bottom=90 right=24 width="20rem" gap=8 padding=14 border-radius=12 background-color="#202731f0"
               text `Army · ${hud.housing_used}/${hud.housing_cap} space` font-size=18
               for r in hud.army key=r.key
@@ -166,7 +208,43 @@ component Village
                 text `Training ${hud.training} · ${hud.training_left}s · ${hud.queue.length} queued` testId="training" color="#ffd54f"
                 button press=send("untrain 0") testId="untrain" padding=8 border-radius=10 background-color="#8e2b2b" box-shadow="inset 0 -4px 0 #00000055, 0 2px 0 #00000088" border-width=2 border-style="solid" border-color="#00000066"
                   text "✕ Cancel first (refund)"
-          if shopOpen and hud.placing == ""
+          // Raids: the Raid button and the list of rival hospitals.
+          if hud.placing == "" and not hud.raiding
+            button press=toggleCamp testId="raid-open" aria-expanded=campOpen position="absolute" bottom=24 left="50%" transform="translateX(-50%)" padding=16 border-radius=14 background-color="#c62828" box-shadow="inset 0 -4px 0 #00000055, 0 2px 0 #00000088" border-width=2 border-style="solid" border-color="#00000066"
+              text (campOpen ? "Close" : "🚑 Raid") font-size=20
+          if campOpen and not hud.raiding
+            column testId="campaign" position="absolute" bottom=96 left="50%" transform="translateX(-50%)" width="22rem" gap=8 padding=14 border-radius=12 background-color="#202731f0"
+              text "Rival hospitals" font-size=18
+              for c in hud.campaign key=c.index
+                button press=attack(c.index) testId=`attack-${c.index}` disabled=(c.reason != "") aria-label=(c.reason == "" ? `Raid ${c.name}, best ${c.stars} of 3 stars` : `${c.name}, ${c.reason}`) padding=10 border-radius=10 background-color=(c.reason == "" ? "#3e4f5c" : "#2a2f33") text-align="left"
+                  column gap=2
+                    text `${c.name} · ⭐ ${c.stars}/3` font-size=15
+                    text (c.reason == "" ? `${c.defenses} ${c.defenses == 1 ? "defense" : "defenses"}` : c.reason) font-size=12 color=(c.reason == "" ? "#ffd54f" : "#ff8a80")
+          // In a raid: the clock, damage, stars, loot, troop picker and surrender.
+          if hud.raiding and not hud.has_result
+            row testId="raid-top" position="absolute" top=80 left="50%" transform="translateX(-50%)" gap=10 padding=10 border-radius=12 background-color="#000000aa" align-items="center"
+              text hud.raid_camp font-size=16
+              text `⏱ ${hud.raid_secs}s` testId="raid-time" font-variant-numeric="tabular-nums"
+              text `${hud.raid_percent}%` testId="raid-percent" font-variant-numeric="tabular-nums"
+              text `⭐ ${hud.raid_stars}` testId="raid-stars"
+              text `🪙 ${hud.raid_gold} 💧 ${hud.raid_elixir}` testId="raid-loot" font-variant-numeric="tabular-nums"
+            column testId="deploy" position="absolute" bottom=24 left=16 gap=8 padding=12 border-radius=12 background-color="#202731e6"
+              text "Tap outside the red border to drop" font-size=13
+              row gap=8
+                for d in hud.deploy key=d.index
+                  button press=send(`troop ${d.index}`) testId=`troop-${d.index}` aria-pressed=d.selected disabled=(d.count == 0) padding=10 border-radius=10 background-color=(d.selected ? "#ef6c00" : "#3e4f5c")
+                    text `${d.name} ×${d.count}`
+            button press=send("surrender") testId="surrender" position="absolute" bottom=24 right=24 padding=14 border-radius=12 background-color="#8e2b2b"
+              text "🏳 Surrender"
+          if hud.has_result
+            column testId="result" position="absolute" top="50%" left="50%" transform="translate(-50%, -50%)" width="20rem" gap=12 padding=20 border-radius=16 background-color="#202731f5" align-items="center"
+              text (hud.result_stars > 0 ? "Victory!" : "Defeat") font-size=28 color=(hud.result_stars > 0 ? "#ffd54f" : "#ff8a80")
+              text `⭐ ${hud.result_stars} / 3 · ${hud.result_percent}% destroyed` testId="result-stars"
+              text `Loot: 🪙 ${hud.result_gold} · 💧 ${hud.result_elixir}` testId="result-loot"
+              text `Troops used: ${hud.result_used}` font-size=13
+              button press=send("home") testId="home" padding=14 border-radius=12 background-color="#43a047"
+                text "Return home"
+          if shopOpen and hud.placing == "" and not hud.raiding
             column testId="shop" position="absolute" bottom=90 right=24 width=300 gap=8 padding=14 border-radius=12 background-color="#202731f0"
               text "Shop" font-size=18
               for r in hud.shop key=r.key
