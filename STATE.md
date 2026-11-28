@@ -101,3 +101,6 @@ Each step: tests + Chrome check + reviewer + commit/push on the feature branch. 
 - T1 test web 4/4 (dev hidden, names). T2 in code + committed: 61 rust tests; HUD study panel; tz from time.utcOffset (declared in shape Time); SAVE_CONTRACT 4. test web running (5 tests). Skeptic on T0-T2 next, then one Chrome look for T1+T2 together, then T3 (Supabase spike).
 - T2 test web 5/5. Skeptic round 1 BLOCK: power-hour bank above holds*1000 made decode refuse the save → fresh village overwrote it. FIXED (valid allows holds*2000, reload test), plus "Need N Scrubs Tokens", aria labels coffee/grant money, settle_training before a new power window. 62 rust tests. Skeptic round 2 pending.
 - T3 recipe saved in NET-RECIPE.md.
+- T0-T2 skeptic round 2: VERDICT SHIP (df8e515).
+- T3 STARTED: free Supabase project created 2026-11-28 ($0, Conner's only org, free plan): grand-rounds-playtest, ref lqcecndhhmbifrxbexne, us-west-1. It takes the org's 2nd free active-project slot — tell Conner.
+- Use ONLY the plugin Supabase tools (mcp__plugin_supabase_supabase__*) with project_id lqcecndhhmbifrxbexne. The bare mcp__supabase__* tools point at a different existing project — never use them for this game.
