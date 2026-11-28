@@ -60,3 +60,11 @@ command confused you, record it: `bun exact.mjs feedback note "<what happened>"`
 exact2's commit and the last exit code, never output or code. `bun exact.mjs feedback status` says
 whether notes are sent and whether to keep a diary; under `never`, skip all of this.
 <!-- exact:end -->
+
+## SAVE_CONTRACT (save safety, ROADMAP step 1)
+
+Any change to a number that `valid()` or `decode` reads (caps, holds, housing, max_count, size, max_level, troop or camp count) must bump SAVE_CONTRACT, add a migration from the old version, and add the old format's frozen string to `old_saves_decode` before it ships. This applies during the test week too.
+
+- `SAVE_CONTRACT` lives in `logic/src/economy.rs`; `Town::encode` writes it as the last `#` section, `Town::migrate` holds one step per bump, and the frozen strings are `FROZEN` in `logic/tests/save.rs` (never edit one; add the next).
+- `decode` clamps rule-limited numbers (gold over cap, banked over holds, levels over max, troop/camp list lengths, army over housing) instead of refusing; only text that isn't a village returns None.
+- A kept save that can't be read is never saved or uploaded over (`Ui::load_failed`, `Cloud::unreadable`); test `failed_load_never_uploads`.
