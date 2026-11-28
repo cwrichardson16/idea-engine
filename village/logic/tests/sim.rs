@@ -316,13 +316,13 @@ fn knowledge_only_comes_from_reviews() {
 #[test]
 fn picking_finds_the_tile_under_the_middle_of_the_screen() {
     let view = Vec2::new(1440.0, 756.0);
-    // The camera looks at LOOK, the screen's centre: x=0, z=1.5 → tile (15, 16).
-    assert_eq!(tile_at(view, view / 2.0, &CamView::home()), Some((15, 16)));
-    // Left of centre is a lower x; lower on screen is nearer the camera (higher z).
+    // The camera looks at LOOK, the screen's centre: x=3, z=3 → tile (18, 18).
+    assert_eq!(tile_at(view, view / 2.0, &CamView::home()), Some((18, 18)));
+    // Corner-on view: left of centre is lower x; lower on screen is nearer the camera (higher x and z).
     let (lx, _) = tile_at(view, Vec2::new(500.0, 378.0), &CamView::home()).unwrap();
-    assert!(lx < 15);
-    let (_, nz) = tile_at(view, Vec2::new(720.0, 600.0), &CamView::home()).unwrap();
-    assert!(nz > 16);
+    assert!(lx < 18);
+    let (nx, nz) = tile_at(view, Vec2::new(720.0, 600.0), &CamView::home()).unwrap();
+    assert!(nx > 18 && nz > 18);
     // The sky is not a tile.
     assert_eq!(tile_at(view, Vec2::new(720.0, 2.0), &CamView::home()), None);
 }
@@ -466,15 +466,67 @@ fn a_double_click_on_place_spends_no_gems() {
 fn picking_follows_the_camera_when_panned_and_zoomed() {
     let view = Vec2::new(1440.0, 756.0);
     let home = tile_at(view, view / 2.0, &CamView::home()).unwrap();
-    let panned = CamView { pan_x: 5.0, pan_z: -3.0, zoom: 1.0 };
+    let panned = CamView { pan_x: 5.0, pan_z: -3.0, ..CamView::home() };
     assert_eq!(tile_at(view, view / 2.0, &panned), Some((home.0 + 5, home.1 - 3)));
-    let close = CamView { pan_x: 0.0, pan_z: 0.0, zoom: ZOOM_MIN };
+    let close = CamView { zoom: ZOOM_MIN, ..CamView::home() };
     assert_eq!(tile_at(view, view / 2.0, &close), Some(home));
     // Zoomed in, the same screen offset covers fewer tiles.
     let off = Vec2::new(900.0, 378.0);
     let far_x = tile_at(view, off, &CamView::home()).unwrap().0 - home.0;
     let near_x = tile_at(view, off, &close).unwrap().0 - home.0;
     assert!(near_x < far_x, "{near_x} < {far_x}");
+}
+
+#[test]
+fn the_whole_village_fits_the_screen_at_home_zoom() {
+    let view = Vec2::new(1440.0, 810.0);
+    let v = CamView::home();
+    // A point just inside each grid corner is on screen: walk the screen and find all four.
+    let mut seen = [false; 4];
+    for sy in (0..810).step_by(6) {
+        for sx in (0..1440).step_by(6) {
+            if let Some((x, z)) = tile_at(view, Vec2::new(sx as f32, sy as f32), &v) {
+                for (i, c) in [(0, 0), (29, 0), (0, 29), (29, 29)].iter().enumerate() {
+                    if (x, z) == *c {
+                        seen[i] = true;
+                    }
+                }
+            }
+        }
+    }
+    assert_eq!(seen, [true; 4]);
+}
+
+#[test]
+fn a_drag_keeps_the_ground_under_the_finger() {
+    let view = Vec2::new(1440.0, 810.0);
+    let mut sim: Sim<Village> = exact_game::sim_with_art!(Options::default()).unwrap();
+    sim.viewport(view.x, view.y);
+    sim.run(100.0);
+    let start = Vec2::new(500.0, 300.0);
+    // Short enough to stay inside the pan limit.
+    let end = Vec2::new(650.0, 380.0);
+    let before = ground_at(view, start, &sim.world().resource::<CamView>()).unwrap();
+    let mut t = 100.0;
+    let send = |sim: &mut Sim<Village>, phase, at: Vec2, d: Vec2, t: f64| {
+        sim.input(InputEvent::Pointer {
+            id: 1, phase, x: at.x, y: at.y, dx: d.x, dy: d.y, buttons: 1, at_ms: t, player: 0,
+        });
+    };
+    send(&mut sim, PointerPhase::Down, start, Vec2::ZERO, t);
+    sim.run(34.0);
+    let step = (end - start) / 10.0;
+    for i in 1..=10 {
+        t += 34.0;
+        send(&mut sim, PointerPhase::Move, start + step * i as f32, step, t);
+        sim.run(34.0);
+    }
+    t += 34.0;
+    send(&mut sim, PointerPhase::Up, end, Vec2::ZERO, t);
+    sim.run(100.0);
+    let after = ground_at(view, end, &sim.world().resource::<CamView>()).unwrap();
+    let off = (after - before).length();
+    assert!(off < 1.0, "the ground slipped {off} m under the finger");
 }
 
 /// A slice-1 save, captured before slice 2 changed anything. It must always load.

@@ -93,27 +93,27 @@ component Village
     postMessage(`buy ${key}`, "world")
 
   view
-    main width="100%" height="100%" background-color="#1d2a1f" color="#ffffff"
+    main width="100%" height="100%" background-color="#1d2a1f" color="#ffffff" font-weight=800 text-shadow="0 2px 0 #000000aa"
       if playing
         canvas surface=world(seed=7, restart=again, epoch=time.epochAtZero) message=heard testId="world" width="100%" height="100%" position="relative"
           // Top bar: resources and builders.
           row testId="hud-top" position="absolute" top=16 left=16 right=16 gap=10 align-items="center" justify-content="space-between"
             row gap=10 flex-wrap="wrap"
-              text `🪙 ${hud.gold} / ${hud.gold_cap}` testId="hud-gold" font-variant-numeric="tabular-nums" padding=10 border-radius=10 background-color="#3b2f0bcc" color="#ffd54f"
-              text `💧 ${hud.elixir} / ${hud.elixir_cap}` testId="hud-elixir" font-variant-numeric="tabular-nums" padding=10 border-radius=10 background-color="#3a0b3bcc" color="#f0a6ff"
-              text `💎 ${hud.gems}` testId="hud-gems" padding=10 border-radius=10 background-color="#0b2a3bcc" color="#7fdbff"
-              text `📚 ${hud.knowledge}` testId="hud-knowledge" padding=10 border-radius=10 background-color="#0b3b22cc" color="#9cffc4"
-              text `🔨 ${hud.builders_free}/${hud.builders}` testId="hud-builders" padding=10 border-radius=10 background-color="#202731cc"
-              text `Town Hall ${hud.town_hall}` testId="hud-th" padding=10 border-radius=10 background-color="#202731cc"
+              text `🪙 ${hud.gold} / ${hud.gold_cap}` testId="hud-gold" font-variant-numeric="tabular-nums" padding=10 border-radius=10 background-color="#3b2f0bcc" color="#ffd54f" box-shadow="inset 0 -4px 0 #00000055, 0 2px 0 #00000088" border-width=2 border-style="solid" border-color="#00000066"
+              text `💧 ${hud.elixir} / ${hud.elixir_cap}` testId="hud-elixir" font-variant-numeric="tabular-nums" padding=10 border-radius=10 background-color="#3a0b3bcc" color="#f0a6ff" box-shadow="inset 0 -4px 0 #00000055, 0 2px 0 #00000088" border-width=2 border-style="solid" border-color="#00000066"
+              text `💎 ${hud.gems}` testId="hud-gems" padding=10 border-radius=10 background-color="#0b2a3bcc" color="#7fdbff" box-shadow="inset 0 -4px 0 #00000055, 0 2px 0 #00000088" border-width=2 border-style="solid" border-color="#00000066"
+              text `📚 ${hud.knowledge}` testId="hud-knowledge" padding=10 border-radius=10 background-color="#0b3b22cc" color="#9cffc4" box-shadow="inset 0 -4px 0 #00000055, 0 2px 0 #00000088" border-width=2 border-style="solid" border-color="#00000066"
+              text `🔨 ${hud.builders_free}/${hud.builders}` testId="hud-builders" padding=10 border-radius=10 background-color="#202731cc" box-shadow="inset 0 -4px 0 #00000055, 0 2px 0 #00000088" border-width=2 border-style="solid" border-color="#00000066"
+              text `Town Hall ${hud.town_hall}` testId="hud-th" padding=10 border-radius=10 background-color="#202731cc" box-shadow="inset 0 -4px 0 #00000055, 0 2px 0 #00000088" border-width=2 border-style="solid" border-color="#00000066"
             row gap=10
-              button press=send("dev rich") testId="dev-rich" aria-label="Dev: fill storage" padding=10 border-radius=10 background-color="#5d4037"
+              button press=send("dev rich") testId="dev-rich" aria-label="Dev: fill storage" padding=10 border-radius=10 background-color="#5d4037" box-shadow="inset 0 -4px 0 #00000055, 0 2px 0 #00000088" border-width=2 border-style="solid" border-color="#00000066"
                 text "Dev +5000"
-              button press=send("dev th") testId="dev-th" aria-label="Dev: Town Hall up one" padding=10 border-radius=10 background-color="#5d4037"
+              button press=send("dev th") testId="dev-th" aria-label="Dev: Town Hall up one" padding=10 border-radius=10 background-color="#5d4037" box-shadow="inset 0 -4px 0 #00000055, 0 2px 0 #00000088" border-width=2 border-style="solid" border-color="#00000066"
                 text "Dev TH+1"
-              button press=send("review") testId="review" aria-label="Do a review (test)" padding=10 border-radius=10 background-color="#1f7a4d"
+              button press=send("review") testId="review" aria-label="Do a review (test)" padding=10 border-radius=10 background-color="#1f7a4d" box-shadow="inset 0 -4px 0 #00000055, 0 2px 0 #00000088" border-width=2 border-style="solid" border-color="#00000066"
                 text "+ Review (test)"
           if hud.toast != ""
-            text hud.toast testId="toast" aria-live="polite" position="absolute" top=80 left=16 padding=12 border-radius=10 background-color="#000000cc"
+            text hud.toast testId="toast" aria-live="polite" position="absolute" top=80 left=16 padding=12 border-radius=10 background-color="#000000cc" box-shadow="inset 0 -4px 0 #00000055, 0 2px 0 #00000088" border-width=2 border-style="solid" border-color="#00000066"
           // Placing: a ghost follows taps; confirm or cancel.
           if hud.placing != ""
             column testId="placing" position="absolute" bottom=24 left=16 gap=8 align-items="center" padding=14 border-radius=12 background-color="#202731e6"
@@ -121,9 +121,9 @@ component Village
               if hud.place_reason != ""
                 text hud.place_reason testId="place-reason" color="#ff8a80"
               row gap=10
-                button press=send("place") testId="place" disabled=(hud.place_reason != "") padding=12 border-radius=10 background-color=(hud.place_reason == "" ? "#43a047" : "#555555")
+                button press=send("place") testId="place" disabled=(hud.place_reason != "") padding=12 border-radius=10 background-color=(hud.place_reason == "" ? "#43a047" : "#555555") box-shadow="inset 0 -4px 0 #00000055, 0 2px 0 #00000088" border-width=2 border-style="solid" border-color="#00000066"
                   text "✓ Place"
-                button press=send("cancel") testId="cancel" padding=12 border-radius=10 background-color="#8e2b2b"
+                button press=send("cancel") testId="cancel" padding=12 border-radius=10 background-color="#8e2b2b" box-shadow="inset 0 -4px 0 #00000055, 0 2px 0 #00000088" border-width=2 border-style="solid" border-color="#00000066"
                   text "✕ Cancel"
           // Selected building: info, upgrade, collect, speed-ups.
           if hud.placing == "" and hud.has_selected
@@ -135,42 +135,42 @@ component Village
                 text `Ready to collect: ${hud.selected.waiting} ${hud.selected.res}` testId="sel-waiting"
               row gap=8 flex-wrap="wrap" justify-content="center"
                 if hud.selected.res != "" and hud.selected.waiting > 0
-                  button press=send("collect") testId="collect" padding=10 border-radius=10 background-color="#43a047"
+                  button press=send("collect") testId="collect" padding=10 border-radius=10 background-color="#43a047" box-shadow="inset 0 -4px 0 #00000055, 0 2px 0 #00000088" border-width=2 border-style="solid" border-color="#00000066"
                     text "Collect"
                 if hud.selected.left > 0
-                  button press=send("skip gems") testId="skip-gems" disabled=(hud.gems < hud.selected.skip_gems) padding=10 border-radius=10 background-color="#1565c0"
+                  button press=send("skip gems") testId="skip-gems" disabled=(hud.gems < hud.selected.skip_gems) padding=10 border-radius=10 background-color="#1565c0" box-shadow="inset 0 -4px 0 #00000055, 0 2px 0 #00000088" border-width=2 border-style="solid" border-color="#00000066"
                     text `Finish now · 💎 ${hud.selected.skip_gems}`
-                  button press=send("skip knowledge") testId="skip-knowledge" disabled=(hud.knowledge < hud.selected.skip_knowledge) padding=10 border-radius=10 background-color="#1f7a4d"
+                  button press=send("skip knowledge") testId="skip-knowledge" disabled=(hud.knowledge < hud.selected.skip_knowledge) padding=10 border-radius=10 background-color="#1f7a4d" box-shadow="inset 0 -4px 0 #00000055, 0 2px 0 #00000088" border-width=2 border-style="solid" border-color="#00000066"
                     text `Finish now · 📚 ${hud.selected.skip_knowledge}`
                 if hud.selected.left == 0 and hud.selected.level < hud.selected.max_level
-                  button press=send("upgrade") testId="upgrade" disabled=(hud.selected.upgrade_reason != "") padding=10 border-radius=10 background-color=(hud.selected.upgrade_reason == "" ? "#ef6c00" : "#555555")
+                  button press=send("upgrade") testId="upgrade" disabled=(hud.selected.upgrade_reason != "") padding=10 border-radius=10 background-color=(hud.selected.upgrade_reason == "" ? "#ef6c00" : "#555555") box-shadow="inset 0 -4px 0 #00000055, 0 2px 0 #00000088" border-width=2 border-style="solid" border-color="#00000066"
                     text (hud.selected.upgrade_reason == "" ? `Upgrade · ${hud.selected.upgrade_cost} ${hud.selected.upgrade_res} · ${hud.selected.upgrade_secs}s` : `Upgrade · ${hud.selected.upgrade_reason}`)
-                button press=send("cancel") testId="close" padding=10 border-radius=10 background-color="#455a64"
+                button press=send("cancel") testId="close" padding=10 border-radius=10 background-color="#455a64" box-shadow="inset 0 -4px 0 #00000055, 0 2px 0 #00000088" border-width=2 border-style="solid" border-color="#00000066"
                   text "Close"
           // Shop.
           if hud.placing == ""
-            button press=toggleShop testId="shop-open" aria-expanded=shopOpen position="absolute" bottom=24 right=24 padding=16 border-radius=14 background-color="#ef6c00"
+            button press=toggleShop testId="shop-open" aria-expanded=shopOpen position="absolute" bottom=24 right=24 padding=16 border-radius=14 background-color="#ef6c00" box-shadow="inset 0 -4px 0 #00000055, 0 2px 0 #00000088" border-width=2 border-style="solid" border-color="#00000066"
               text (shopOpen ? "Close shop" : "🏪 Shop") font-size=18
           if hud.placing == "" and hud.has_barracks
-            button press=toggleArmy testId="army-open" aria-expanded=armyOpen position="absolute" bottom=24 right=170 padding=16 border-radius=14 background-color="#9e3b2e"
+            button press=toggleArmy testId="army-open" aria-expanded=armyOpen position="absolute" bottom=24 right=170 padding=16 border-radius=14 background-color="#9e3b2e" box-shadow="inset 0 -4px 0 #00000055, 0 2px 0 #00000088" border-width=2 border-style="solid" border-color="#00000066"
               text (armyOpen ? "Close army" : `⚔️ Army ${hud.housing_used}/${hud.housing_cap}`) font-size=18
           if armyOpen and hud.placing == ""
             column testId="army" position="absolute" bottom=90 right=24 width="20rem" gap=8 padding=14 border-radius=12 background-color="#202731f0"
               text `Army · ${hud.housing_used}/${hud.housing_cap} space` font-size=18
               for r in hud.army key=r.key
-                button press=send(`train ${r.key}`) testId=`train-${r.key}` disabled=(r.reason != "") aria-label=(r.reason == "" ? `Train ${r.name}, ${r.cost} elixir` : `${r.name}, ${r.reason}`) padding=10 border-radius=10 background-color=(r.reason == "" ? "#3e4f5c" : "#2a2f33") text-align="left"
+                button press=send(`train ${r.key}`) testId=`train-${r.key}` disabled=(r.reason != "") aria-label=(r.reason == "" ? `Train ${r.name}, ${r.cost} elixir` : `${r.name}, ${r.reason}`) padding=10 border-radius=10 background-color=(r.reason == "" ? "#3e4f5c" : "#2a2f33") text-align="left" box-shadow="inset 0 -4px 0 #00000055, 0 2px 0 #00000088" border-width=2 border-style="solid" border-color="#00000066"
                   column gap=2
                     text `${r.name} ×${r.count}` font-size=15
                     text (r.reason == "" ? `${r.cost} elixir · ${r.secs}s · ${r.housing} space` : r.reason) font-size=12 color=(r.reason == "" ? "#f0a6ff" : "#ff8a80")
               if hud.queue.length > 0
                 text `Training ${hud.training} · ${hud.training_left}s · ${hud.queue.length} queued` testId="training" color="#ffd54f"
-                button press=send("untrain 0") testId="untrain" padding=8 border-radius=10 background-color="#8e2b2b"
+                button press=send("untrain 0") testId="untrain" padding=8 border-radius=10 background-color="#8e2b2b" box-shadow="inset 0 -4px 0 #00000055, 0 2px 0 #00000088" border-width=2 border-style="solid" border-color="#00000066"
                   text "✕ Cancel first (refund)"
           if shopOpen and hud.placing == ""
             column testId="shop" position="absolute" bottom=90 right=24 width=300 gap=8 padding=14 border-radius=12 background-color="#202731f0"
               text "Shop" font-size=18
               for r in hud.shop key=r.key
-                button press=buy(r.key) testId=`buy-${r.key}` disabled=(r.reason != "") aria-label=(r.reason == "" ? `${r.name}, ${r.cost} ${r.res}` : `${r.name}, ${r.reason}`) padding=10 border-radius=10 background-color=(r.reason == "" ? "#3e4f5c" : "#2a2f33") text-align="left"
+                button press=buy(r.key) testId=`buy-${r.key}` disabled=(r.reason != "") aria-label=(r.reason == "" ? `${r.name}, ${r.cost} ${r.res}` : `${r.name}, ${r.reason}`) padding=10 border-radius=10 background-color=(r.reason == "" ? "#3e4f5c" : "#2a2f33") text-align="left" box-shadow="inset 0 -4px 0 #00000055, 0 2px 0 #00000088" border-width=2 border-style="solid" border-color="#00000066"
                   column gap=2
                     text `${r.name} (${r.owned}/${r.max})` font-size=15
                     text (r.reason == "" ? `${r.cost} ${r.res}${r.secs > 0 ? ` · ${r.secs}s` : ""}` : r.reason) font-size=12 color=(r.reason == "" ? (r.res == "gold" ? "#ffd54f" : "#f0a6ff") : "#ff8a80")
@@ -180,5 +180,5 @@ component Village
           column width="100%" max-width="24rem" align-items="center" gap=8
             text "Build your village. Mines and collectors fill over time: tap them to collect." width="100%" text-align="center"
             text "Builders take time. Study (Knowledge) finishes timers early." width="100%" text-align="center"
-          button press=play autofocus aria-label="Play" testId="play" padding=16 border-radius=12 background-color="#ef6c00"
+          button press=play autofocus aria-label="Play" testId="play" padding=16 border-radius=12 background-color="#ef6c00" box-shadow="inset 0 -4px 0 #00000055, 0 2px 0 #00000088" border-width=2 border-style="solid" border-color="#00000066"
             text "Play" font-size=20

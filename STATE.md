@@ -53,3 +53,9 @@ See SPEC.md "Choices made" and V1.md §4.
 ## Learned / gotchas
 - A sample's lock can go stale. Fix it with `bun game/app/shells.mjs <game> --lock`.
 - The first cold web build takes about 25 to 46 minutes. `test-rust` can trigger a long dev-loop rebuild; wait for "plan ready".
+
+## Look pass 2 (Conner 2026-11-27: "more cartoon, Clash-like"; approved "pressure test it but then go")
+- Plan: LOOK-PLAN.md (diamond camera, screen-space drag, grid only while placing, chunky HUD; KayKit swap after Phase B).
+- Done, uncommitted: tools/add_outline.py ran on art/*.glb (ink outlines + rim), brighter sky/grass/sun, far fog, dirt rim. test-rust 36 pass.
+- The red "save refused: assets are not ready" box is the dev hot-swap only (snapshot refused while models load). Not a player bug.
+- Skeptic reviewing LOOK-PLAN.md; then build steps 1-4, Chrome check, commit, then back to Phase A step 2 (army Chrome check) and Phase B.

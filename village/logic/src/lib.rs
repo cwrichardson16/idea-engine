@@ -58,11 +58,13 @@ pub struct CamView {
     pub pan_x: f32,
     pub pan_z: f32,
     pub zoom: f32,
+    /// While dragging: the pointer and the ground point it grabbed.
+    pub grab: Option<(u64, Vec3)>,
 }
 
 impl CamView {
     pub fn home() -> Self {
-        CamView { pan_x: 0.0, pan_z: 0.0, zoom: 1.0 }
+        CamView { pan_x: 0.0, pan_z: 0.0, zoom: 1.0, grab: None }
     }
 }
 
@@ -88,6 +90,8 @@ pub struct Shown {
     pub buildings: Vec<Drawn>,
     pub ghost: Vec<Entity>,
     pub ghost_sig: String,
+    /// Whether the grid shows its tile lines (only while placing).
+    pub grid_lines: bool,
     pub hud: Hud,
     /// The last save sent to the page, and when.
     pub last_save: String,
@@ -176,8 +180,19 @@ pub struct Hud {
 
 pub const HZ: u32 = 30;
 /// Where the camera sits and looks; picking uses the same numbers.
-pub const EYE: Vec3 = Vec3::new(0.0, 24.0, 22.0);
-pub const LOOK: Vec3 = Vec3::new(0.0, 0.0, 1.5);
+/// A steep corner-on ("diamond") view: 55° down, 45° round, a narrow 35°
+/// lens from 60 m away, so the whole 30×30 grid fits a 16:9 view at zoom 1.
+pub const EYE: Vec3 = Vec3::new(3.0 + 24.3, 49.1, 3.0 + 24.3);
+pub const LOOK: Vec3 = Vec3::new(3.0, 0.0, 3.0);
+pub const FOV_Y: f32 = 35.0;
+
+/// The camera's lens; the drawn camera and picking share it.
+pub fn lens() -> Camera {
+    Camera {
+        fov_y_degrees: FOV_Y,
+        ..Camera::default()
+    }
+}
 
 pub struct Village;
 impl Game for Village {
@@ -200,31 +215,42 @@ impl Game for Village {
         w.insert_resource(SaveContract {
             version: SAVE_CONTRACT,
         });
-        let sky = Color::hex("#a8d8ea");
+        // Cartoon look: a clear bright sky, fog only far away, saturated grass.
+        let sky = Color::hex("#6ec6f5");
         w.insert_resource(Environment {
             background: Some(sky),
+            ambient: 0.75,
             fog: Some(Fog {
                 color: Some(sky),
+                linear: Some([60.0, 110.0]),
                 ..Fog::new(0.01, 0.04)
             }),
             ..Environment::default()
         });
-        // Meadow, then the village's buildable grid on top.
+        // Meadow, a dirt rim, then the village's buildable grid on top.
         w.spawn((
-            Transform::at(0.0, -0.02, 0.0),
+            Transform::at(0.0, -0.03, 0.0),
             Mesh::plane(120.0, 120.0),
-            Material::hex("#6aa84f"),
+            Material::hex("#4fae2e"),
         ));
         w.spawn((
-            Transform::default(),
-            Mesh::plane(GRID as f32, GRID as f32),
-            Material::grid(Color::hex("#93c47d"), 1.0),
+            Transform::at(0.0, -0.015, 0.0),
+            Mesh::plane(GRID as f32 + 1.2, GRID as f32 + 1.2),
+            Material::hex("#c9975b"),
         ));
+        w.spawn_named(
+            "grid",
+            (
+                Transform::default(),
+                Mesh::plane(GRID as f32, GRID as f32),
+                grid_look(false),
+            ),
+        );
         w.spawn_named(
             "camera",
             (
                 camera_pose(&CamView::home()),
-                Camera::default(),
+                lens(),
             ),
         );
         for (name, x, z, k) in SCENERY {
@@ -234,7 +260,11 @@ impl Game for Village {
             "sun",
             (
                 Transform::at(12.0, 24.0, 10.0).looking_at(Vec3::ZERO, Vec3::Y),
-                DirectionalLight::default(),
+                DirectionalLight {
+                    color: [1.0, 0.94, 0.82],
+                    illuminance: 12000.0,
+                    shadows: true,
+                },
             ),
         );
         w.insert_resource(Town::new());
@@ -514,13 +544,49 @@ fn steer(w: &mut World, input: &Input) {
     let pose = {
         let mut v = w.resource_mut::<CamView>();
         let before = (v.pan_x, v.pan_z, v.zoom);
-        for p in input.pointers() {
-            if p.down && p.press_origin.distance(p.position) > 12.0 {
-                // About one tile per 28 px at the default zoom on a 756 px tall view.
-                let k = v.zoom * 21.0 / view.y.max(1.0);
-                v.pan_x -= p.delta.x * k;
-                v.pan_z -= p.delta.y * k;
+        // A drag that ended this tick (even one whole press-move-release inside
+        // one tick) finishes with its ground point under where the finger let go.
+        let mut ended = Vec::new();
+        for e in input.pointer_events() {
+            if e.phase != PointerPhase::Up {
+                continue;
             }
+            ended.push(e.id);
+            let origin = input
+                .pointers()
+                .iter()
+                .find(|p| p.id == e.id)
+                .map_or(e.position, |p| p.press_origin);
+            if origin.distance(e.position) <= 12.0 {
+                continue;
+            }
+            let grabbed = match v.grab {
+                Some((id, g)) if id == e.id => Some(g),
+                _ => ground_at(view, origin, &v),
+            };
+            if let (Some(g), Some(now)) = (grabbed, ground_at(view, e.position, &v)) {
+                v.pan_x += g.x - now.x;
+                v.pan_z += g.z - now.z;
+            }
+            v.grab = None;
+        }
+        // The ground point grabbed at the press stays under the finger.
+        let drag = input
+            .pointers()
+            .iter()
+            .find(|p| p.down && !ended.contains(&p.id) && p.press_origin.distance(p.position) > 12.0)
+            .cloned();
+        match drag {
+            Some(p) => {
+                if v.grab.map(|(id, _)| id) != Some(p.id) {
+                    v.grab = ground_at(view, p.press_origin, &v).map(|g| (p.id, g));
+                }
+                if let (Some((_, g)), Some(now)) = (v.grab, ground_at(view, p.position, &v)) {
+                    v.pan_x += g.x - now.x;
+                    v.pan_z += g.z - now.z;
+                }
+            }
+            None => v.grab = None,
         }
         if wheel != 0.0 {
             v.zoom = (v.zoom * (1.0 + wheel * 0.0015)).clamp(ZOOM_MIN, ZOOM_MAX);
@@ -560,12 +626,22 @@ fn taps(w: &mut World, input: &Input) {
 
 /// The grid tile under a point on the screen (CSS pixels), if any.
 pub fn tile_at(view: Vec2, p: Vec2, v: &CamView) -> Option<(i32, i32)> {
+    let hit = ground_at(view, p, v)?;
+    let half = GRID as f32 / 2.0;
+    let (x, z) = ((hit.x + half).floor() as i32, (hit.z + half).floor() as i32);
+    (0..GRID).contains(&x).then_some(())?;
+    (0..GRID).contains(&z).then_some(())?;
+    Some((x, z))
+}
+
+/// The point on the ground (y = 0) under a point on the screen, if any.
+pub fn ground_at(view: Vec2, p: Vec2, v: &CamView) -> Option<Vec3> {
     if view.x <= 0.0 || view.y <= 0.0 {
         return None;
     }
     let cam = camera_pose(v);
     let pose = Mat4::from_rotation_translation(cam.rotation, cam.position);
-    let inverse = Camera::default().matrix(view).inverse();
+    let inverse = lens().matrix(view).inverse();
     let ndc = Vec3::new(p.x / view.x * 2. - 1., 1. - p.y / view.y * 2., 0.);
     let near = inverse.project_point3(ndc);
     let far = inverse.project_point3(ndc.with_z(1.));
@@ -575,12 +651,7 @@ pub fn tile_at(view: Vec2, p: Vec2, v: &CamView) -> Option<(i32, i32)> {
         return None;
     }
     let t = -origin.y / dir.y;
-    let hit = origin + dir * t;
-    let half = GRID as f32 / 2.0;
-    let (x, z) = ((hit.x + half).floor() as i32, (hit.z + half).floor() as i32);
-    (0..GRID).contains(&x).then_some(())?;
-    (0..GRID).contains(&z).then_some(())?;
-    Some((x, z))
+    Some(origin + dir * t)
 }
 
 /// The world position of a footprint's centre.
@@ -740,12 +811,27 @@ fn spawn_building(w: &mut World, kind: Kind, x: i32, z: i32, level: u8, busy: bo
 }
 
 /// Redraws what changed and publishes the HUD when it changed.
+/// Plain grass, with tile lines only while placing a building.
+fn grid_look(lines: bool) -> Material {
+    if lines {
+        Material::grid(Color::hex("#7fcf45"), 1.0)
+    } else {
+        Material::hex("#6cc43a")
+    }
+}
+
 fn draw(w: &mut World) {
     let now = now_ms(w);
     let (selected, placing, gx, gz) = {
         let ui = w.resource::<Ui>();
         (ui.selected, ui.placing.clone(), ui.ghost_x, ui.ghost_z)
     };
+    // Material is saved state: write it only when placing starts or stops.
+    let lines = !placing.is_empty();
+    if w.resource::<Shown>().grid_lines != lines {
+        w.resource_mut::<Shown>().grid_lines = lines;
+        *w.require_mut::<Material>("grid") = grid_look(lines);
+    }
     // Buildings.
     let wanted: Vec<(u32, String, Kind, i32, i32, u8, bool, bool)> = w
         .resource::<Town>()
