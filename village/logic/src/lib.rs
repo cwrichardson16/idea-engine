@@ -170,6 +170,8 @@ pub struct Hud {
     /// Names of queued troops, the first one training.
     pub queue: Vec<String>,
     pub training_left: u32,
+    /// The name of the troop training now; empty when none.
+    pub training: String,
 }
 
 pub const HZ: u32 = 30;
@@ -924,5 +926,6 @@ pub fn hud(w: &World, now: u64, place_reason: String) -> Hud {
         housing_cap: town.housing_cap(),
         queue: town.queue.iter().map(|t| t.name().to_string()).collect(),
         training_left: town.training_left(now) as u32,
+        training: town.queue.first().map(|t| t.name().to_string()).unwrap_or_default(),
     }
 }

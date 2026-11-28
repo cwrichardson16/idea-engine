@@ -23,6 +23,15 @@ shape Selected
   skip_gems: number
   skip_knowledge: number
 
+shape TrainRow
+  key: string
+  name: string
+  cost: number
+  secs: number
+  housing: number
+  count: number
+  reason: string
+
 shape Hud
   gold: number
   gold_cap: number
@@ -39,6 +48,13 @@ shape Hud
   has_selected: bool
   selected: Selected
   toast: string
+  has_barracks: bool
+  army: TrainRow[]
+  housing_used: number
+  housing_cap: number
+  queue: string[]
+  training_left: number
+  training: string
 
 shape Time
   epochAtZero: number
@@ -47,6 +63,7 @@ component Village
   state playing = false
   state again = false
   state shopOpen = false
+  state armyOpen = false
   // The village, kept by the page between visits (Rust writes it).
   state village = "" persist
   resource hud = exactSurface("world") as shape Hud
@@ -62,6 +79,11 @@ component Village
 
   action toggleShop
     shopOpen = not shopOpen
+    armyOpen = false
+
+  action toggleArmy
+    armyOpen = not armyOpen
+    shopOpen = false
 
   action send(c: string)
     postMessage(c, "world")
@@ -84,6 +106,10 @@ component Village
               text `🔨 ${hud.builders_free}/${hud.builders}` testId="hud-builders" padding=10 border-radius=10 background-color="#202731cc"
               text `Town Hall ${hud.town_hall}` testId="hud-th" padding=10 border-radius=10 background-color="#202731cc"
             row gap=10
+              button press=send("dev rich") testId="dev-rich" aria-label="Dev: fill storage" padding=10 border-radius=10 background-color="#5d4037"
+                text "Dev +5000"
+              button press=send("dev th") testId="dev-th" aria-label="Dev: Town Hall up one" padding=10 border-radius=10 background-color="#5d4037"
+                text "Dev TH+1"
               button press=send("review") testId="review" aria-label="Do a review (test)" padding=10 border-radius=10 background-color="#1f7a4d"
                 text "+ Review (test)"
           if hud.toast != ""
@@ -125,6 +151,21 @@ component Village
           if hud.placing == ""
             button press=toggleShop testId="shop-open" aria-expanded=shopOpen position="absolute" bottom=24 right=24 padding=16 border-radius=14 background-color="#ef6c00"
               text (shopOpen ? "Close shop" : "🏪 Shop") font-size=18
+          if hud.placing == "" and hud.has_barracks
+            button press=toggleArmy testId="army-open" aria-expanded=armyOpen position="absolute" bottom=24 right=170 padding=16 border-radius=14 background-color="#9e3b2e"
+              text (armyOpen ? "Close army" : `⚔️ Army ${hud.housing_used}/${hud.housing_cap}`) font-size=18
+          if armyOpen and hud.placing == ""
+            column testId="army" position="absolute" bottom=90 right=24 width="20rem" gap=8 padding=14 border-radius=12 background-color="#202731f0"
+              text `Army · ${hud.housing_used}/${hud.housing_cap} space` font-size=18
+              for r in hud.army key=r.key
+                button press=send(`train ${r.key}`) testId=`train-${r.key}` disabled=(r.reason != "") aria-label=(r.reason == "" ? `Train ${r.name}, ${r.cost} elixir` : `${r.name}, ${r.reason}`) padding=10 border-radius=10 background-color=(r.reason == "" ? "#3e4f5c" : "#2a2f33") text-align="left"
+                  column gap=2
+                    text `${r.name} ×${r.count}` font-size=15
+                    text (r.reason == "" ? `${r.cost} elixir · ${r.secs}s · ${r.housing} space` : r.reason) font-size=12 color=(r.reason == "" ? "#f0a6ff" : "#ff8a80")
+              if hud.queue.length > 0
+                text `Training ${hud.training} · ${hud.training_left}s · ${hud.queue.length} queued` testId="training" color="#ffd54f"
+                button press=send("untrain 0") testId="untrain" padding=8 border-radius=10 background-color="#8e2b2b"
+                  text "✕ Cancel first (refund)"
           if shopOpen and hud.placing == ""
             column testId="shop" position="absolute" bottom=90 right=24 width=300 gap=8 padding=14 border-radius=12 background-color="#202731f0"
               text "Shop" font-size=18

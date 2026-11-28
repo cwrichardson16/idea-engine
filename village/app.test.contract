@@ -1,10 +1,28 @@
 // The menus and HUD on a host: `bun exact.mjs test web` (also macos, ios).
 // Gameplay is tested hostless in logic/tests: `bun exact.mjs test-rust`.
-test "Play starts the world with its HUD"
+test "Play starts the village with its HUD"
   expect tree has "play"
   tap "play"
   expect tree has "world"
   clock +500
-  expect text "hud-lit" == "Lit 0"
-  tap "pause"
-  expect tree has "restart"
+  expect text "hud-gold" == "🪙 500 / 1000"
+  expect text "hud-th" == "Town Hall 1"
+
+test "Buying then cancelling spends nothing"
+  tap "play"
+  clock +500
+  tap "shop-open"
+  expect tree has "shop"
+  tap "buy-goldmine"
+  clock +200
+  expect tree has "placing"
+  tap "cancel"
+  clock +200
+  expect text "hud-elixir" == "💧 500 / 1000"
+
+test "Dev shortcut raises the Town Hall"
+  tap "play"
+  clock +500
+  tap "dev-th"
+  clock +200
+  expect text "hud-th" == "Town Hall 2"
