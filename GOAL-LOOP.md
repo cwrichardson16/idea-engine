@@ -1,7 +1,7 @@
 # Goal + loop for the build (v2, 2026-11-28, takes review round 2)
 
 ## Goal (one line)
-Ten testers, given a private link, play Stonehaven (a robust, good-looking Clash-like base builder where real Anki reviews boost them) for 7+ days with no help, nothing breaks, cheats cheaply or loses progress, and Conner can see daily return, raw reviews vs each tester's baseline, and survey answers.
+Ten testers, given a private link, play Stonehaven (a robust, good-looking Clash-like base builder where real Anki study boosts them) for 7+ days with no help, nothing breaks, cheats cheaply or loses progress, and Conner can see daily return, raw study minutes vs each tester's baseline (counts alongside), and survey answers (v3: minutes + queue cleared, owner decision 2026-11-28).
 
 ## Finish line for the build (all true, each with evidence in STATE.md)
 1. ROADMAP.md steps 1–9 and 11 done (10 walls is stretch), each passing its written done-check in ROADMAP.md. Checks were fixed before the loop started; none weakened without telling Conner.
@@ -10,7 +10,7 @@ Ten testers, given a private link, play Stonehaven (a robust, good-looking Clash
    - Chrome at desktop and 390×844: fresh profile does the tutorial; raids a camp; raids test player B; B sees "you were raided" + shield + loot loss once within 90 s without reload; reload keeps everything; restore code works in a 2nd profile.
    - Real phones: Conner runs the tutorial, a raid and a reload on his iPhone (Safari) and one Android phone (Chrome). Device + OS recorded. If the iPhone can't run it, Conner has decided what to do (ROADMAP step 2).
    - Load: ≤ 10 s from navigation to a tappable village, Chrome cold cache, "Fast 4G" + 4× CPU; ASSETS ≤ 2 MB gzip.
-4. Anki: the add-on-identical script proves counted reviews give Knowledge by the rule and every ANTICHEAT.md cheat case gets its stated outcome; a real review in desktop Anki becomes Knowledge on the deployed link (screenshot + SQL); same-filter test green (baseline and live raw counts use one function).
+4. Anki (v3: minutes + queue cleared, owner decision 2026-11-28): the add-on-identical script proves credited minutes give Knowledge by the rule (1 per minute, 30 s per-card cap, 1.5 s floor, 120-minute cap with ramp), queue cleared pays only when every due card was reviewed, and every ANTICHEAT.md cheat case (incl. the v3 queue-cleared table) gets its stated outcome; a real review in desktop Anki becomes Knowledge on the deployed link (screenshot + SQL); same-filter test green (baseline and live raw minutes and counts use one function).
 5. Measurement: `playtest_daily` proven on seeded data (3 players × 7 days, matches the fixture), seed deleted; raw daily counts stored for every post.
 6. Supabase: advisors clean; SQL as user B can't read/write A's save, events, pairing, raids; loot moves only via the raid RPC; each raid applied once; erase leaves 0 rows for the player; the wipe script leaves only Conner's accounts.
 7. Save safety: `old_saves_decode`, `decode_clamps_not_refuses`, `failed_load_never_uploads` green.

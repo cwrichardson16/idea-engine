@@ -2,7 +2,9 @@
 
 Written 2026-11-28 for SPEC-3 T4. Read-only research and design: nothing built, nothing deployed.
 
-Goal: real Anki reviews give in-game boosts (capped at 1,500 a day). Make claiming reviews that weren't done hard. No honour or self-report button.
+Goal: real Anki study gives in-game boosts. Make claiming study that wasn't done hard. No honour or self-report button.
+
+**v3: minutes + queue cleared (owner decision 2026-11-28).** Rewards are now paid on credited MINUTES studied plus a "queue cleared" bonus, not on review counts (1,500 reviews a day was too high and unfair across subjects: med students do 500 to 1,500 a day, language learners 50 to 150). The review ledger (Design B) and every per-row rule stay; the ledger now sums time instead of counting rows. See the section "v3: minutes + queue cleared" at the end; where it conflicts with older text below, v3 wins.
 
 ## The honest baseline
 
@@ -97,13 +99,14 @@ Server rules, applied to each card's rows in id order. A row earns credit only i
 9. Per card per Anki day: at most 1 credited type 1 row, 1 credited type 2 row and 2 credited type 0 rows. Pressing Again over and over earns nothing.
 10. Chain: the row's `last_ivl` should equal the server's last scored `ivl`. A mismatch is logged but not refused, because FSRS optimizing and rescheduling can change it. Cards whose chain breaks more than 5% of the time get flagged.
 
-Daily credit = credited rows for that Anki day, capped at `min(1500, ramp)`. Also, no 24 h window of row timestamps may hold more than 1,500 credited rows. `ramp = 300 + 50 × review_days`. `review_days` counts the distinct Anki days since pairing, by row timestamp, that have at least 20 credited rows. It can never exceed the calendar days since `paired_at` on the server clock, so backfilling doesn't speed it up. The cap reaches 1,500 after about 24 days of study. The client's baseline is for analysis only.
+(Superseded by v3, see the end.) ~~Daily credit = credited rows for that Anki day, capped at `min(1500, ramp)`; `ramp = 300 + 50 × review_days`; `review_days` = days with ≥ 20 credited rows.~~ v3: daily credit = credited minutes, capped at `min(120, ramp_min)`; no 24 h window of row timestamps may hold more than 120 credited minutes; `review_days` counts days with ≥ 10 credited minutes. `review_days` can never exceed the calendar days since `paired_at` on the server clock, so backfilling doesn't speed it up. The client's baseline is for analysis only.
 
 Pattern flags (reviewed by Conner; a flagged day is credited at 50% and shows "checking" in the game; no automatic bans):
 - Again rate on type 1 reviews under 2% across 300+ reviews in 7 days. (My assumption: real retention is about 80 to 95%, so 5 to 20% Again is normal. That fits FSRS default desired retention 0.9: UNVERIFIED, page not opened, https://github.com/open-spaced-repetition/fsrs4anki/wiki/The-optimal-retention.)
 - Metronome timing: time variation across a day under 0.25, or more than 40% of times inside one 200 ms band.
 - More than 3 h of reviewing with no gap over 5 min.
-- A day over 3× the player's 14-day median, once that median is above 50.
+- A day over 3× the player's 14-day median of credited minutes, once that median is above 15 minutes (v3; was 50 reviews).
+- Idling (v3): more than 40% of a day's credited rows sit at the 30 s per-card cap, across 50+ rows.
 - More than 5% of a day's Good/Easy reviews leave a card stuck at 1 day.
 - Backfill: one batch carries rows for 3 or more past Anki days on which the server had received nothing. Normal for a phone user who syncs weekly, so this is info only. It is also what a bulk forger looks like.
 - A snapshot over 20,000 non-new cards, or a snapshot where more than 30% of cards fall due within the first 3 days (an implausibly front-loaded collection).
@@ -177,3 +180,57 @@ The defenses are caps, a ramp, checks against the schedule, and human review of 
 2. **Growth rule applies to Good and Easy only (ease 3, 4).** Anki can honestly keep a 1-day card at 1 day on Hard (review.rs `.max(1)`), so Hard reviews are credited without the growth check; Good/Easy always land on 2+ days under SM-2 and FSRS, so the stuck-card flag can't misfire on them.
 3. Known floor (accepted): an imported big scheduled collection + a randomised auto-answer add-on passes every rule and reaches the cap after the ~24-day ramp. Only human review of flags and the cap limit this.
 4. To check while building: the add-on API name for today's Anki day (`col.sched.today`) in a real Anki.
+
+## v3: minutes + queue cleared (owner decision 2026-11-28)
+
+Replaces the count-based daily credit, the 1,500 caps and the review-count chest tiers. Every per-row ledger rule above (1 to 10, the backfill budget and queue, the round-2 amendments) still decides which rows are credited. What changes is what a credited row is worth.
+
+### Credited minutes
+- Each credited row is worth `min(time_ms, 30,000) / 1000` seconds. Rows under 1,500 ms already fail rule 4 and are worth 0.
+- Daily credited minutes = sum of credited seconds for that Anki day (by row timestamp) / 60, kept as seconds on the server so nothing is lost to rounding.
+- Why a 30 s per-card cap: Anki already clamps `time` at the deck's "maximum answer seconds" (default 60 s), but players can raise that, so the server clamps again. Most honest reviews take well under 30 s (typical averages are about 5 to 15 s a card; my estimate, not measured), so 30 s barely touches real study, including long med cards or typed language answers. It halves what an idler gets for leaving a card open (60 s → 30 s). Idling is also bounded by the ledger: every idled card must be a really due card, answered on schedule, with interval growth on Good/Easy, so filling the 120-minute cap by idling needs 240 real due cards. A 15 s cap would underpay honest slow cards; 60 s would let 120 idled cards fill the cap.
+- Per-card-per-day limits (rule 9) apply to minutes too: pressing Again over and over adds no minutes.
+
+### Daily cap and ramp
+- Daily credit cap = `min(120, ramp_min)` credited minutes. No 24 h window of row timestamps may hold more than 120 credited minutes.
+- `ramp_min = min(120, 60 + 15 × min(d, 2) + 1.5 × max(d − 2, 0))`, where `d = review_days` = distinct Anki days since pairing (by row timestamp) with at least 10 credited minutes, never more than calendar days since `paired_at`. Values: d = 0 → 60, 1 → 75, 2 → 90, 12 → 105, 22 → 120. Why two speeds: the top daily chest (90 min) is reachable from the 3rd day for a real heavy studier (the reviewed chest-retune goal), while the full cap still takes about 3 weeks, so a fresh forged account earns at most 60 to 90 minutes a day for its first weeks.
+- Backfill budget (from the second pass) is now in minutes: rows for Anki days older than yesterday can credit at most `2 × ramp_min` minutes in total per arrival day; the rest queue as before.
+
+### Rewards
+- **Knowledge:** 1 per credited minute (floor of credited seconds / 60 for the day). Max 120 a day.
+- **Daily chests:** at 10 / 30 / 60 / 90 credited minutes, each paid once per Anki day, scaled by Keep level (and streak day) as today.
+- **Power hours:** 1 per 30 credited minutes, max 4 a day (so the 120-minute cap earns exactly 4). Kept as asked: 30 minutes of study for 1 hour of 2× production feels fair and the 4 h max lines up with the cap.
+- **Queue cleared bonus chest:** 1 a day when the day counts as queue cleared (below), the same size as the 30-minute chest.
+- **Streak:** a day counts if it is queue cleared OR has ≥ 10 credited minutes. Why OR: a language learner with 40 cards due clears them in about 8 minutes and should keep a streak; a med student with 1,200 due who can't clear them but studies an hour should too. 10 minutes matches the first chest. Day 7 big chest and Scrubs Tokens as before.
+
+### Queue cleared: exact definition
+What the add-on sends, with every batch (new fields; no card content):
+- `due_list`: the HMAC card hashes (same as the ledger) of review cards due today, read from the `cards` table, not the scheduler queue: `queue in (2, 3)` (review and day-relearn) with absolute due day ≤ today (overdue included), UNION every card that has a type 1 or 2 row today (so cards reviewed before the first send still count as due). New cards (queue 0) and intraday learning (queue 1) are excluded. Reading the table instead of the queue means a tiny "maximum reviews/day" limit doesn't hide due cards.
+- `remaining`: how many cards in `due_list` are still due now (display and cross-check only; the server computes its own).
+
+Server, per player per Anki day D:
+- `day_due` = the union of every `due_list` sent for D. Cards are only ever added, never removed, so suspending, burying or deleting a card after it was listed leaves it in the set.
+- A card is **cleared** if it has a row on day D that passes ledger rules 1 to 8 (type 1 or 2, ease > 0, ≥ 1.5 s, not type 3, not tampered), ignoring the daily cap and the per-day credit limits. Reviews above the 120-minute cap still clear cards.
+- **Omission check:** the server knows its own "surely due" set for D: ledger cards whose last scored row + `expected_ivl` (or snapshot `due_day`) is ≤ D − max(1, 5% of the interval), allowing for FSRS fuzz. Surely-due cards missing from `day_due` count as remaining, except: cards with a type 5 row that moved them past D, and an allowance of max(2, 5% of `day_due`) for honest leech auto-suspends and deletions. Over the allowance → not cleared and flagged.
+- A card with a type 4 row (set due date, forget, reset) on D, while due by D in either set, counts as remaining.
+- **Queue cleared** for D = `|day_due| ≥ 1` AND every card in `day_due` is cleared AND the omission check passes. Sanity check: valid rows for D ≥ `|day_due|`.
+- Settles late: D is re-evaluated whenever rows for D arrive, up to the end of day D + 2 (phone reviews sync later). Chest and streak settle then.
+
+What stops faking it:
+| Trick | Result |
+|---|---|
+| Suspend, bury or delete due cards after they were listed | Still in `day_due`, unreviewed → not cleared |
+| Suspend or bury them before the first send | Missing surely-due cards → over the allowance → not cleared, flagged |
+| Tiny daily review limit | Due list reads the cards table, not the queue → no effect |
+| "Set due date" or forget on due cards | Type 4 row → counts as remaining |
+| FSRS reschedule pushing many cards away | Type 5 rows excuse those cards; over 20% of the surely-due set rescheduled in one day → not cleared that day (streak can still use the 10-minute path) |
+| Cram/filtered deck or Grade Now | Type 3 rows don't clear cards |
+| Edited add-on sends a short due list | Omission check against the server's own schedule |
+| Forged snapshot with 1 card due a day | Forger floor, already accepted; payoff is one chest a day |
+
+**Nothing due:** a day where `day_due` is empty and the server's surely-due set is also empty is not queue cleared (no bonus chest) but freezes the streak (it neither breaks nor grows), at most 3 frozen days in any 7. Why: a real user with nothing due shouldn't lose a streak, but doing nothing shouldn't pay. If the server expects due cards and the list is empty, the omission check fails and the day needs 10 credited minutes like any other.
+
+### Measurement (playtest)
+- `raw_daily(player_id, day, raw_reviews, raw_seconds, credited_reviews, credited_seconds, due_count, cleared)` for every post, credited or not. `raw_*` use the same filter as the baseline: types 0, 1, 2; time ≥ 1.5 s; seconds = sum of min(time, 30 s).
+- The 30-day baseline (sent at pairing, analysis only, never credit) now has per-day review counts AND minutes with that same filter, so both medians can be compared.
+

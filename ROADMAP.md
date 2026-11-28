@@ -11,7 +11,7 @@ The playtest must answer Conner's question: do students study more and keep comi
 | 1 | Economy + combat fixes (mines hold hours, building HP by level, troop levels, defenses retuned, camps scale and refill daily) + save safety + the balance sim with a fixed player strategy | Loop runs dry after session 1; raids are easy 3-stars; a retune today can wipe a village | 2–2.5 |
 | 2 | Art spike: Keep, Mint, one animated KayKit troop, one defense through the release web build; size + load test; Conner opens it on his iPhone and one Android phone | Find engine, art and phone problems first | 1–1.5 |
 | 3 | Readable battles: HP bars + visible shots only (hit/death animations move to step 8) | Players need to see what's happening; animations need the step-8 troops | 0.5 |
-| 4 | Anki link per ANTICHEAT.md + measurement (visits, raw daily counts, playtest_daily view) + add-on packaging/install + periodic re-fetch + chest retune + "counted X of Y" | The hook testers sign up for, and the numbers that answer the question | 5.5 |
+| 4 | Anki link per ANTICHEAT.md (v3: minutes + queue cleared, owner decision 2026-11-28) + measurement (visits, raw daily minutes and counts, playtest_daily view) + add-on packaging/install + periodic re-fetch + chest retune + "counted X of Y minutes" | The hook testers sign up for, and the numbers that answer the question | 5.5 |
 | 5 | Move buildings | Basic base-building expectation | 0.5–1 |
 | 6 | Lean async PvP with its server work (raids table, trophies, opponent list + top-10 RPCs, skip abandoned accounts, game handles 'raid' events), 10% loot, 8 h shield, revenge, defense log; camps stay the main raid supply | The Clash core | 4–5 |
 | 7 | Trebuchet (splash defense) | Defense variety | 0.5 |
@@ -36,9 +36,9 @@ Every step also needs: `bun exact.mjs test-rust` green, `contract build --json` 
   - `failed_load_never_uploads`: a corrupt save string leaves the stored text untouched, shows an error, and no `put_save` is queued (dirty stays false for 10 simulated minutes).
 - SAVE_CONTRACT rule (written into village/CLAUDE.md in this step): any change to a number that `valid()` or `decode` reads (caps, holds, housing, max_count, size, max_level, troop or camp count) must bump SAVE_CONTRACT, add a migration from the old version, and add the old format's frozen string to `old_saves_decode` before it ships. This applies during the test week too.
 - Economy numbers (tests): every mine and collector holds between 2 h and 12 h of production at every level; `building_hp(kind, level)` at level 8 is at least 3× level 1; camps refill once per Anki day (4 am rollover test).
-- Balance sim (test `seven_day_sim`), fixed strategy: the builder upgrades the cheapest eligible building, collects every 4 h, plays 3 sessions a day at 8 am / 1 pm / 8 pm; run with 0 and with 100 reviews a day. The attacker trains a full army and drops it in 3 equal groups on the side nearest the Keep. Pass bars:
+- Balance sim (test `seven_day_sim`), fixed strategy: the builder upgrades the cheapest eligible building, collects every 4 h, plays 3 sessions a day at 8 am / 1 pm / 8 pm; run with 0 and with 30 credited minutes a day (v3: 30 Knowledge, the 10 and 30 minute chests, the queue-cleared chest, 1 power hour). The attacker trains a full army and drops it in 3 equal groups on the side nearest the Keep. Pass bars:
   - Keep level: day 1 = 2–3, day 3 = 3–5, day 7 = 5–7; never max (8) by day 7.
-  - With 100 reviews a day, at least 15% more total upgrade levels by day 7 than without.
+  - With 30 credited minutes a day, at least 15% more total upgrade levels by day 7 than without.
   - No dead end: in every 24 h window there is an upgrade the player can afford or one finishing.
   - Level-matched raids (50 seeded fights per day-7 base): average stars between 1.0 and 2.0, 3-star rate ≤ 20%.
 - Chrome: a save made before step 1 loads after it with the same buildings (screenshot).
@@ -56,13 +56,19 @@ Every step also needs: `bun exact.mjs test-rust` green, `contract build --json` 
 - Page test: during a battle, every damaged troop and building shows an HP bar whose fill equals its battle.rs HP fraction (±5%); each ranged attack spawns a visible shot.
 - Chrome screenshot at 390×844 mid-battle: at least 1 HP bar and 1 shot visible.
 
-**Step 4: Anki link + measurement**
-- A script posting exactly like the add-on, against the deployed function: 100 counted interval-growing reviews give exactly 20 Knowledge (1 per 5); every case in ANTICHEAT.md's cheat table has a script case with the outcome the table states (refused, capped or flagged).
-- Same-filter test: one Python function filters revlog rows for both the 30-day baseline and live posts (same review types, same 1.5 s floor, credited or not). A unit test on one fixture of revlog rows gets the same count both ways.
-- Server stores raw filtered daily counts (`raw_daily(player_id, day, raw)`) for every post, credited or not, next to credited events.
-- `visits(player_id, day)` table, upserted once per Anki day (4 am local) on `get_state`/`put_save`. `playtest_daily` view: per player per day, visited, raw reviews, credited reviews, baseline median. Proven on seeded fake data: 3 fake players × 7 days; the view's D1/D2/D7 activity and raw-vs-baseline rows match a fixture file exactly; then the seed is deleted (query shows 0 seeded rows).
-- Chest retune (default; Conner may veto in one line): tiers 50 / 150 / 300 / 500 and ramp `400 + 50 × review_days`, so a tester doing 500+ raw reviews reaches the top chest by day 3 (after 2 review days). Test: sim player with 500 credited reviews a day gets the top tier on day 3 and every day after. ANTICHEAT.md updated to match.
-- Study panel shows "counted X of Y reviews" and the reason for the gap (page test).
+**Step 4: Anki link + measurement** (v3: minutes + queue cleared, owner decision 2026-11-28; rules in ANTICHEAT.md "v3")
+- A script posting exactly like the add-on, against the deployed function, on a player whose ramp is at 120:
+  - 100 credited interval-growing reviews of 18,000 ms each give exactly 30 Knowledge (1,800 s = 30 min), the 10 and 30 minute chests, and 1 power hour.
+  - 100 credited reviews of 45,000 ms each give exactly 50 Knowledge (each capped at 30 s), not 75.
+  - 100 reviews of 1,200 ms each give 0 Knowledge.
+  - 400 credited reviews of 30,000 ms (200 min) give exactly 120 Knowledge, all 4 chests and 4 power hours; on a fresh pairing (ramp 60) the same post gives exactly 60.
+  - every case in ANTICHEAT.md's cheat table and its v3 queue-cleared table has a script case with the outcome the table states (refused, capped, not cleared or flagged).
+- Queue cleared script cases: 20 due, all 20 reviewed → cleared + bonus chest; 20 due, 19 reviewed + 1 suspended after listing → not cleared; the due list omits 5 of 20 server-surely-due cards → not cleared + flag; "set due date" on a due card → not cleared; 1,500 due all reviewed with minutes capped at 120 → still cleared; nothing due on either side → no bonus chest, streak frozen (and a 4th frozen day in 7 breaks it); a day with 10 credited minutes but not cleared keeps the streak.
+- Same-filter test: one Python function filters revlog rows for both the 30-day baseline and live posts (types 0, 1, 2; 1.5 s floor; seconds = min(time, 30 s); credited or not). A unit test on one fixture of revlog rows gets the same count AND the same seconds both ways.
+- Server stores raw filtered daily numbers (`raw_daily(player_id, day, raw_reviews, raw_seconds, credited_reviews, credited_seconds, due_count, cleared)`) for every post, credited or not, next to credited events. The baseline has per-day counts and minutes.
+- `visits(player_id, day)` table, upserted once per Anki day (4 am local) on `get_state`/`put_save`. `playtest_daily` view: per player per day, visited, raw minutes, raw reviews, credited minutes, queue cleared, baseline median minutes and baseline median reviews. Proven on seeded fake data: 3 fake players × 7 days; the view's D1/D2/D7 activity and raw-vs-baseline rows (minutes and counts) match a fixture file exactly; then the seed is deleted (query shows 0 seeded rows).
+- Chest retune (default; Conner may veto in one line): tiers 10 / 30 / 60 / 90 credited minutes plus the queue-cleared chest; daily cap `min(120, ramp_min)` with `ramp_min = min(120, 60 + 15 × min(d, 2) + 1.5 × max(d − 2, 0))`, d = review days with ≥ 10 credited minutes (60 → 75 → 90 by day 3, 120 after 22 review days). Test: sim player with 90+ credited minutes a day gets the top tier on day 3 and every day after, and a 120-minute player reaches the 120 cap on day 23 (after 22 review days), not before. ANTICHEAT.md updated to match (done in v3).
+- Study panel shows "counted X of Y minutes", whether the queue is cleared (or how many due cards remain), and the reason for any gap (page test).
 - Periodic re-fetch: every 60 s while not in a battle. Chrome: with the game open, a scripted post appears as Knowledge within 90 s with no reload.
 - Packaging: a script builds `stonehaven.ankiaddon`, served from the private link (no AnkiWeb listing without Conner's go).
 - Real Anki (Conner, once): installs desktop Anki on this Mac (new app, ask first) and the add-on; pairs using a code shown on a phone-sized game window; does 1 real review. Evidence: screenshot + SQL row in raw_daily and events, Knowledge up on the deployed link. If Conner has AnkiMobile/AnkiDroid: 1 phone review counts after a desktop sync. Windows install: checked only if Conner or a tester has a Windows PC; otherwise listed as untested in the guide.
@@ -109,16 +115,16 @@ Every step also needs: `bun exact.mjs test-rust` green, `contract build --json` 
 - Before or during step 2: open the spike on iPhone + Android (5 min). Decide if the iPhone fails.
 - Step 4: OK to install desktop Anki on this Mac, then install the add-on and do 1 real review. Optional: 1 phone Anki review.
 - Step 8: OK on Blender (or skip it); thumbs-up on the screenshot set.
-- Recruiting (during steps 9–11): send the invite to 10 testers. Screener (written by the agent in step 11): desktop Anki that syncs daily; a phone that passed step 2 (or a laptop); about 100+ reviews a day for 30 days so a baseline exists; exam dates in the test week. Set up a group chat for a daily nudge.
+- Recruiting (during steps 9–11): send the invite to 10 testers. Screener (written by the agent in step 11): desktop Anki that syncs daily; a phone that passed step 2 (or a laptop); about 20+ minutes of Anki a day for 30 days so a baseline exists (v3: minutes + queue cleared, owner decision 2026-11-28); exam dates in the test week. Set up a group chat for a daily nudge.
 - Final go before the link is shared.
 
 ## Phase P: run the playtest (after Conner's go)
 - Day 0: wipe script run, roster filled, each tester paired (raw baseline present) or listed as unpaired.
-- Daily (agent): query `playtest_daily` and `bug_reports`; send Conner a plain-English report (who visited, raw reviews vs baseline, new bugs); take a `pg_dump` backup to the private scratch area (free-plan backups unverified).
+- Daily (agent): query `playtest_daily` and `bug_reports`; send Conner a plain-English report (who visited, raw and credited minutes vs baseline, raw reviews for context, queue-cleared days, new bugs) (v3: minutes + queue cleared, owner decision 2026-11-28); take a `pg_dump` backup to the private scratch area (free-plan backups unverified).
 - Hotfix rule: redeploying the live link is a production deploy, so ask Conner (or use a standing OK he gives for bug fixes). Any rules/number change follows the SAVE_CONTRACT rule and passes `old_saves_decode` before redeploy.
 - Day 2: check-in with Conner: anyone not returning, anything broken, decide early.
 - Day 7: survey prompt. Day 8: final readout.
-- Success lines (exact): active on day 7 = a `visits` row on the tester's 7th Anki day, target ≥ 5 of 10; reviews = raw filtered daily count vs the same filter's baseline median, target median at or above baseline. Unpaired testers reported separately, not as zero. n = 10 with no control group: a directional signal, said so in the readout.
+- Success lines (exact): active on day 7 = a `visits` row on the tester's 7th Anki day, target ≥ 5 of 10; study = raw filtered daily minutes (types 0/1/2, ≥ 1.5 s, each review capped at 30 s) vs the same filter's 30-day baseline median minutes, target median at or above baseline; credited minutes, raw review counts and queue-cleared days reported alongside (v3: minutes + queue cleared, owner decision 2026-11-28). Unpaired testers reported separately, not as zero. n = 10 with no control group: a directional signal, said so in the readout.
 
 ## Cut, limits, risks
 - Cut for the test: leagues and trophy matchmaking, obstacles, streak-earned 3rd builder, visual replays, clans, spells.
@@ -126,8 +132,8 @@ Every step also needs: `bun exact.mjs test-rust` green, `contract build --json` 
 - Risks and their checks: empty raid list (`small_pool_has_targets`); week-1 balance (`seven_day_sim` bars); Anki friction (real-Anki check + guide); iPhone WebGPU (step 2 phone check, Conner's call if it fails); lost progress (save safety tests).
 
 ## Round 3 amendments (product reviewer SHIP)
-- Visits and raw counts use the player's Anki day: the game sends its UTC offset with get_state/put_save (or a `p_tz` arg); a review counts on the day it was done (revlog timestamp), not the day it arrived.
-- Baseline median counts all 30 days, including zero-review days.
+- Visits and raw minutes/counts use the player's Anki day: the game sends its UTC offset with get_state/put_save (or a `p_tz` arg); a review counts on the day it was done (revlog timestamp), not the day it arrived.
+- Baseline medians (minutes and counts) use all 30 days, including zero-study days (v3: minutes + queue cleared, owner decision 2026-11-28).
 - Phone fps bar: if a mid-range Android is under 20 fps, first retry at the engine's lower quality setting before calling it a fail (the engine's starter runs ~16 fps on a Pixel 5). If no on-screen fps counter exists, step 2 adds one behind dev mode.
 - Daily database backup needs the database password: a Conner item (or rely on the free plan's backups if confirmed).
 
