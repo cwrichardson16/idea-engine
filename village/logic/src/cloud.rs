@@ -123,8 +123,8 @@ pub fn step(w: &mut World, net: &str) {
             c.send("signin", "", &[&e, &p]);
         }
         Step::Fetch => {
-            // A cloud save is about to replace this one: never mid-raid.
-            if c.take_cloud && raid {
+            // A fetch may replace the village: never mid-raid.
+            if raid {
                 return;
             }
             let t = c.token.clone();
