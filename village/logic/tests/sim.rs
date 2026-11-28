@@ -1186,3 +1186,77 @@ fn durations_read_as_people_say_them() {
     assert!(h.selected.upgrade_time.contains('h'), "{}", h.selected.upgrade_time);
     assert_eq!(h.shop.iter().find(|r| r.key == "goldmine").unwrap().time, "10s");
 }
+
+// ---- ROADMAP step 3: readable battles (drawing only) ----
+
+/// Every damaged, standing troop and building has an HP bar whose fill is its
+/// battle.rs HP fraction (±5%); full and dead ones have none; cannon shots and
+/// Archer arrows fly, Spearman swings don't.
+#[test]
+fn damaged_things_show_hp_bars_and_ranged_hits_fly() {
+    let mut sim = raid_world();
+    // Raider Outpost has a cannon at (13, 9): Spearmen north of it, Archers west.
+    sim.world_mut().resource_mut::<Town>().army = vec![5, 4, 0];
+    command(sim.world_mut(), "attack 1");
+    for x in 12..17 {
+        command(sim.world_mut(), &format!("tap {x} 4"));
+    }
+    command(sim.world_mut(), "troop 1");
+    for z in 4..8 {
+        command(sim.world_mut(), &format!("tap 3 {z}"));
+    }
+    let (mut balls, mut arrows, mut checked) = (0, 0, 0);
+    for _ in 0..240 {
+        sim.run(1000.0 / 30.0);
+        let w = sim.world();
+        let f = w.resource::<fight::Fight>();
+        let Some(b) = &f.battle else { break };
+        if b.over {
+            break;
+        }
+        for s in &b.shots {
+            if s.ball { balls += 1 } else { arrows += 1 }
+        }
+        let wanted = fight::wanted_bars(b);
+        assert_eq!(f.bars.len(), wanted.len(), "one bar per damaged thing");
+        for bar in &f.bars {
+            let want = wanted.iter().find(|x| x.0 == bar.unit && x.1 == bar.index).expect("bar for a damaged thing");
+            let hp = if bar.unit {
+                let u = &b.units[bar.index as usize];
+                assert!(u.alive());
+                u.hp as f32 / village_logic::battle::troop_stats(u.troop, b.troop_level).0 as f32
+            } else {
+                let t = &b.targets[bar.index as usize];
+                assert!(t.alive() && t.hp < t.max_hp);
+                t.hp as f32 / t.max_hp as f32
+            };
+            assert!((want.5 - hp).abs() < 1e-6);
+            let fill = w.get::<Transform>(bar.fill).unwrap().scale.x;
+            assert!((fill - hp).abs() <= 0.05, "fill {fill} vs hp {hp}");
+            checked += 1;
+        }
+        // In-flight shots are drawn entities.
+        for fly in &f.flying {
+            assert!(w.get::<Transform>(fly.entity).is_some());
+        }
+    }
+    assert!(checked > 0, "some bar was checked");
+    assert!(balls > 0, "the cannon fired");
+    assert!(arrows > 0, "the Archers fired");
+    let h = hud(sim.world(), now_ms(sim.world()), String::new());
+    assert!(h.raid_shots_drawn as usize >= balls + arrows - 1);
+}
+
+/// Spearmen alone swing: no shot is ever drawn when nothing ranged fights.
+#[test]
+fn melee_draws_no_shots() {
+    let mut sim = raid_world();
+    command(sim.world_mut(), "attack 0");
+    for x in 2..8 {
+        command(sim.world_mut(), &format!("tap {x} 2"));
+    }
+    sim.run(20_000.0);
+    let f = sim.world().resource::<fight::Fight>();
+    assert_eq!(f.shots_drawn, 0);
+    assert!(f.battle.as_ref().unwrap().targets.iter().any(|t| t.hp < t.max_hp), "they did hit");
+}

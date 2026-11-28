@@ -199,6 +199,22 @@ impl Unit {
     }
 }
 
+/// A ranged hit landed this tick, for drawing only (an arrow or a cannonball
+/// flying from `from` to `to`, in milli-tiles). Nothing reads it back: hits
+/// and their timing are decided in `step` exactly as without it.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Data)]
+pub struct Shot {
+    pub from_x: i64,
+    pub from_z: i64,
+    pub to_x: i64,
+    pub to_z: i64,
+    /// A cannonball (heavy, slow) rather than an arrow.
+    pub ball: bool,
+}
+
+/// Reach beyond which a troop's hit is a shot, not a swing (milli-tiles).
+pub const MELEE_REACH: i64 = 1000;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum End {
     Time,
@@ -221,6 +237,8 @@ pub struct Battle {
     pub deployed: u32,
     /// The attacker's troop level (their Barracks level); 0 counts as 1.
     pub troop_level: u8,
+    /// Ranged hits of the last tick, for drawing (cleared every step).
+    pub shots: Vec<Shot>,
 }
 
 /// Distance squared, in milli-tiles squared.
@@ -355,6 +373,7 @@ impl Battle {
             return None;
         }
         self.tick += 1;
+        self.shots.clear();
         // Troops.
         for i in 0..self.units.len() {
             if !self.units[i].alive() {
@@ -369,6 +388,7 @@ impl Battle {
             let Some(ti) = target else { continue };
             let (_, damage, every, speed, reach) = troop_stats(self.units[i].troop, self.troop_level);
             let (cx, cz) = self.targets[ti].centre();
+            let ranged = reach > MELEE_REACH;
             let reach = reach + self.targets[ti].half();
             let u = &mut self.units[i];
             let dist = d2(u.x, u.z, cx, cz).isqrt().max(1);
@@ -389,6 +409,9 @@ impl Battle {
                 continue;
             }
             u.cooldown = every;
+            if ranged {
+                self.shots.push(Shot { from_x: u.x, from_z: u.z, to_x: cx, to_z: cz, ball: false });
+            }
             let b = &mut self.targets[ti];
             b.hp = (b.hp - damage).max(0);
             if !b.alive() && !b.spent {
@@ -419,6 +442,8 @@ impl Battle {
             if let Some(ui) = aim {
                 let u = &mut self.units[ui];
                 u.hp = (u.hp - damage).max(0);
+                let shot = Shot { from_x: cx, from_z: cz, to_x: u.x, to_z: u.z, ball: b.kind == Kind::Cannon };
+                self.shots.push(shot);
                 self.targets[bi].cooldown = every;
             }
         }

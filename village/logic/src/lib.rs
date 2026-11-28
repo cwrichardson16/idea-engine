@@ -277,6 +277,17 @@ pub struct Hud {
     pub power_time: String,
     pub training_time: String,
     pub raid_time: String,
+    /// Step 3's readable battle, for page tests: HP bars shown; for the first
+    /// one, its battle.rs HP fraction and the drawn fill's width (both in
+    /// thousandths) and the ±5% window the fill must sit in; shots in the air
+    /// now and drawn this raid.
+    pub raid_bars: u32,
+    pub raid_bar_hp: u32,
+    pub raid_bar_fill: u32,
+    pub raid_bar_lo: u32,
+    pub raid_bar_hi: u32,
+    pub raid_shots: u32,
+    pub raid_shots_drawn: u32,
 }
 
 /// A duration for people: "45s", "2m 30s" (under 10 minutes), "12m",
@@ -1170,6 +1181,8 @@ fn draw(w: &mut World) {
     }
 
     fight::draw_units(w);
+    let facing = w.require::<Transform>("camera").rotation;
+    fight::draw_fx(w, facing);
     animation::step(w);
 
     // The HUD.
@@ -1335,6 +1348,30 @@ fn raid_hud(w: &World) -> Hud {
         result_gold: r.gold,
         result_elixir: r.elixir,
         result_used: r.used,
+        ..bar_probe(w)
+    }
+}
+
+/// The first HP bar's battle.rs fraction against its drawn fill (read back
+/// from the fill's Transform), and the shot counts.
+fn bar_probe(w: &World) -> Hud {
+    let f = w.resource::<fight::Fight>();
+    let Some(b) = &f.battle else { return Hud::default() };
+    let wanted = fight::wanted_bars(b);
+    let first = f.bars.first().and_then(|bar| {
+        let hp = wanted.iter().find(|x| x.0 == bar.unit && x.1 == bar.index)?.5;
+        let fill = w.get::<Transform>(bar.fill)?.scale.x;
+        Some(((hp * 1000.0).round() as u32, (fill * 1000.0).round() as u32))
+    });
+    let (hp, fill) = first.unwrap_or((0, 0));
+    Hud {
+        raid_bars: f.bars.len() as u32,
+        raid_bar_hp: hp,
+        raid_bar_fill: fill,
+        raid_bar_lo: hp.saturating_sub(50),
+        raid_bar_hi: hp + 50,
+        raid_shots: f.flying.len() as u32,
+        raid_shots_drawn: f.shots_drawn,
         ..Hud::default()
     }
 }

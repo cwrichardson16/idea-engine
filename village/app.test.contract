@@ -79,3 +79,34 @@ test "Reviews count toward Knowledge and show in the study panel"
   clock +200
   expect text "study-today" == "📖 5 today"
   expect text "hud-knowledge" == "📚 1"
+
+// ROADMAP step 3: a damaged thing shows an HP bar whose drawn fill (read back
+// from the bar's Transform in the world) is its battle.rs HP fraction ±5%
+// (thousandths: lo = hp − 50, hi = hp + 50), and the cannon's shots fly.
+test "A battle shows HP bars that match HP and visible shots"
+  tap "play"
+  clock +500
+  tap "hud-th"
+  tap "hud-th"
+  tap "hud-th"
+  tap "hud-th"
+  tap "hud-th"
+  clock +200
+  tap "raid-open"
+  tap "dev-army"
+  clock +200
+  tap "attack-1"
+  clock +200
+  tap "dev-drop"
+  tap "dev-drop"
+  tap "dev-drop"
+  tap "dev-drop"
+  tap "dev-drop"
+  clock +2500
+  expect tree has "raid-top"
+  expect state hud.raid_bars >= 1
+  expect state hud.raid_bar_hp >= 1
+  expect state hud.raid_bar_hp <= 999
+  expect state hud.raid_bar_fill >= state hud.raid_bar_lo
+  expect state hud.raid_bar_fill <= state hud.raid_bar_hi
+  expect state hud.raid_shots_drawn >= 1

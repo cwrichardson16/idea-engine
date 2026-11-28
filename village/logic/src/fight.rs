@@ -18,6 +18,35 @@ pub struct Fight {
     pub units: Vec<Entity>,
     /// What each drawn Spearman is playing (`Act`), and where it stood last draw.
     pub acts: Vec<(Act, i64, i64)>,
+    /// HP bars over damaged troops and buildings (drawing only).
+    pub bars: Vec<Bar>,
+    /// Arrows and cannonballs in flight (drawing only).
+    pub flying: Vec<Flying>,
+    /// Shots drawn this raid, and the battle tick whose shots were last drawn.
+    pub shots_drawn: u32,
+    pub shots_tick: u32,
+}
+
+/// One HP bar: a dark back and a coloured fill, over troop `index` (`unit`)
+/// or building `index`.
+#[derive(Clone, Debug, Default, PartialEq, Data)]
+pub struct Bar {
+    pub unit: bool,
+    pub index: u32,
+    pub back: Entity,
+    pub fill: Entity,
+}
+
+/// One shot in the air: it leaves `from` at battle tick `born` and lands on
+/// `to` `ticks` later, on a low arc.
+#[derive(Clone, Debug, Default, PartialEq, Data)]
+pub struct Flying {
+    pub entity: Entity,
+    pub from: Vec3,
+    pub to: Vec3,
+    pub born: u32,
+    pub ticks: u32,
+    pub ball: bool,
 }
 
 /// A Spearman's clip: walking to its target, swinging at it, or fallen.
@@ -91,6 +120,8 @@ pub fn command(w: &mut World, verb: &str, arg: &str) -> Result<bool, String> {
             f.battle = Some(Battle::camp(camp, keep, troop_level, reserve, looted));
             f.troop = first;
             f.result = None;
+            f.shots_drawn = 0;
+            f.shots_tick = 0;
             Ok(true)
         }
         "troop" => {
@@ -265,4 +296,167 @@ pub fn draw_units(w: &mut World) {
     let mut f = w.resource_mut::<Fight>();
     f.units = drawn;
     f.acts = acts;
+}
+
+/// Bar sizes in world units: a building's bar is most of its width, a troop's
+/// about a tile; both thick enough to read on a phone.
+const BAR_H_BUILDING: f32 = 0.34;
+const BAR_H_TROOP: f32 = 0.22;
+const BAR_W_TROOP: f32 = 1.0;
+const BAR_EDGE: f32 = 0.05;
+
+/// Where troop `i` is drawn, in world units (its spot plus the small per-index
+/// nudge `draw_units` uses).
+fn unit_spot(i: usize, x: i64, z: i64) -> (f32, f32) {
+    let half = GRID as f32 / 2.0;
+    let (ox, oz) = ((i * 7 % 5) as f32 * 0.12 - 0.24, (i * 3 % 7) as f32 * 0.08 - 0.24);
+    (x as f32 / MILLI as f32 - half + ox, z as f32 / MILLI as f32 - half + oz)
+}
+
+fn world_xz(x: i64, z: i64) -> (f32, f32) {
+    let half = GRID as f32 / 2.0;
+    (x as f32 / MILLI as f32 - half, z as f32 / MILLI as f32 - half)
+}
+
+/// What wants a bar now: (is a troop, index, centre top in world, width,
+/// height, fill 0..1). Only the damaged and still standing.
+pub fn wanted_bars(b: &Battle) -> Vec<(bool, u32, Vec3, f32, f32, f32)> {
+    let mut out = Vec::new();
+    for (i, t) in b.targets.iter().enumerate() {
+        if t.alive() && t.hp < t.max_hp {
+            let (cx, cz) = t.centre();
+            let (x, z) = world_xz(cx, cz);
+            let s = t.kind.size() as f32;
+            let top = 1.2 + s * 0.6;
+            out.push((false, i as u32, Vec3::new(x, top, z), s * 0.75, BAR_H_BUILDING, t.hp as f32 / t.max_hp as f32));
+        }
+    }
+    for (i, u) in b.units.iter().enumerate() {
+        let (max, ..) = troop_stats(u.troop, b.troop_level);
+        if u.alive() && u.hp < max {
+            let (x, z) = unit_spot(i, u.x, u.z);
+            let top = match u.troop {
+                Troop::Brute => 2.4,
+                Troop::Fighter => 1.7,
+                Troop::Archer => 1.6,
+            };
+            out.push((true, i as u32, Vec3::new(x, top, z), BAR_W_TROOP, BAR_H_TROOP, u.hp as f32 / max as f32));
+        }
+    }
+    out
+}
+
+fn bar_fill_look(unit: bool) -> Material {
+    if unit {
+        // The player's troops: bright green.
+        Material::hex("#3ddc4a").emissive(0.12, 0.55, 0.15)
+    } else {
+        // The enemy's buildings: red.
+        Material::hex("#ff3b30").emissive(0.6, 0.08, 0.05)
+    }
+}
+
+/// HP bars and shots, drawn from the battle as it stands; nothing here feeds
+/// back into the battle. Bars face the camera (they take its rotation).
+pub fn draw_fx(w: &mut World, facing: Quat) {
+    let (wanted, new_shots, tick, over) = match &w.resource::<Fight>().battle {
+        Some(b) => (wanted_bars(b), b.shots.clone(), b.tick, b.over || w.resource::<Fight>().result.is_some()),
+        None => (Vec::new(), Vec::new(), 0, true),
+    };
+    let wanted = if over { Vec::new() } else { wanted };
+    let mut bars = std::mem::take(&mut w.resource_mut::<Fight>().bars);
+    let mut flying = std::mem::take(&mut w.resource_mut::<Fight>().flying);
+
+    // Bars: drop those no longer wanted, add new ones, then place them all.
+    bars.retain(|bar| {
+        let keep = wanted.iter().any(|&(unit, index, ..)| unit == bar.unit && index == bar.index);
+        if !keep {
+            w.despawn(bar.back);
+            w.despawn(bar.fill);
+        }
+        keep
+    });
+    let right = facing * Vec3::X;
+    let toward = facing * Vec3::Z;
+    for &(unit, index, top, width, height, frac) in &wanted {
+        let pos = bars.iter().position(|bar| bar.unit == unit && bar.index == index);
+        let bar = match pos {
+            Some(p) => bars[p].clone(),
+            None => {
+                let back = w.spawn((
+                    Transform::at(top.x, top.y, top.z),
+                    Mesh::cuboid(Vec3::new(width, height, 0.04)),
+                    Material::hex("#121212"),
+                ));
+                let inner = Vec3::new(width - 2.0 * BAR_EDGE, height - 2.0 * BAR_EDGE, 0.04);
+                let fill = w.spawn((Transform::at(top.x, top.y, top.z), Mesh::cuboid(inner), bar_fill_look(unit)));
+                let bar = Bar { unit, index, back, fill };
+                bars.push(bar.clone());
+                bar
+            }
+        };
+        let frac = frac.clamp(0.01, 1.0);
+        let inner_w = width - 2.0 * BAR_EDGE;
+        {
+            let mut t = w.get_mut::<Transform>(bar.back).unwrap();
+            t.position = top;
+            t.rotation = facing;
+        }
+        let mut t = w.get_mut::<Transform>(bar.fill).unwrap();
+        // Left-anchored: the fill shrinks toward the bar's left end.
+        t.position = top - right * (inner_w * (1.0 - frac) / 2.0) + toward * 0.03;
+        t.rotation = facing;
+        t.scale = Vec3::new(frac, 1.0, 1.0);
+    }
+
+    // Shots: each ranged hit of a new battle tick takes off now.
+    let fresh = !over && tick != w.resource::<Fight>().shots_tick;
+    let mut drawn = 0;
+    if fresh {
+        for s in &new_shots {
+            let (fx, fz) = world_xz(s.from_x, s.from_z);
+            let (tx, tz) = world_xz(s.to_x, s.to_z);
+            let from = Vec3::new(fx, if s.ball { 1.1 } else { 1.0 }, fz);
+            let to = Vec3::new(tx, if s.ball { 0.5 } else { 0.9 }, tz);
+            // Arrows fly 14 tiles a second, cannonballs 9.
+            let speed = if s.ball { 9.0 } else { 14.0 };
+            let ticks = ((from.distance(to) / speed * TPS as f32) as u32).max(4);
+            let yaw = exact_game::math::atan2(to.x - from.x, to.z - from.z);
+            let entity = if s.ball {
+                w.spawn((
+                    Transform::at(from.x, from.y, from.z),
+                    Mesh::sphere(0.26),
+                    Material::hex("#2b2b2b").emissive(0.35, 0.2, 0.05),
+                ))
+            } else {
+                let mut t = Transform::at(from.x, from.y, from.z);
+                t.rotation = Quat::from_rotation_y(yaw);
+                w.spawn((t, Mesh::cuboid(Vec3::new(0.14, 0.14, 0.8)), Material::hex("#fff59d").emissive(0.9, 0.85, 0.35)))
+            };
+            flying.push(Flying { entity, from, to, born: tick, ticks, ball: s.ball });
+            drawn += 1;
+        }
+    }
+    flying.retain(|fly| {
+        let age = tick.saturating_sub(fly.born);
+        let keep = !over && age <= fly.ticks;
+        if !keep {
+            w.despawn(fly.entity);
+        }
+        keep
+    });
+    for fly in &flying {
+        let k = (tick.saturating_sub(fly.born) as f32 / fly.ticks as f32).clamp(0.0, 1.0);
+        let lift = if fly.ball { 1.2 } else { 0.35 } * 4.0 * k * (1.0 - k);
+        let at = fly.from.lerp(fly.to, k) + Vec3::Y * lift;
+        w.get_mut::<Transform>(fly.entity).unwrap().position = at;
+    }
+
+    let mut f = w.resource_mut::<Fight>();
+    f.bars = bars;
+    f.flying = flying;
+    if fresh {
+        f.shots_tick = tick;
+        f.shots_drawn += drawn;
+    }
 }
