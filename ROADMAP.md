@@ -145,3 +145,6 @@ Every step also needs: `bun exact.mjs test-rust` green, `contract build --json` 
 - Step 6: opponents see only the base layout, so the server extracts the buildings section from the save (extra work, counted in step 6).
 
 Status: both reviewers SHIP after 3 rounds (2026-11-28). Awaiting Conner's approval to start the loop.
+
+## Later decision (after the playtest): free vs premium study limits
+Conner's idea (2026-11-28): free tier limits how much study speeds you up, premium is unlimited; generous early so players get invested. Agent's view: don't paywall study credit (contradicts "study is a boost, never a gate; Knowledge never sold"); instead taper for everyone (e.g. full credit to 60 min, half after) and sell things around studying (3rd builder, cosmetics, study pass premium track, extra training slot, stats report). The playtest has no purchases; the daily report shows how often testers hit 60 / 90 / 120 credited minutes so the limit can be set from data.

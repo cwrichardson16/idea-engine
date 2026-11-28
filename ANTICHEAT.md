@@ -102,7 +102,7 @@ Server rules, applied to each card's rows in id order. A row earns credit only i
 (Superseded by v3, see the end.) ~~Daily credit = credited rows for that Anki day, capped at `min(1500, ramp)`; `ramp = 300 + 50 × review_days`; `review_days` = days with ≥ 20 credited rows.~~ v3: daily credit = credited minutes, capped at `min(120, ramp_min)`; no 24 h window of row timestamps may hold more than 120 credited minutes; `review_days` counts days with ≥ 10 credited minutes. `review_days` can never exceed the calendar days since `paired_at` on the server clock, so backfilling doesn't speed it up. The client's baseline is for analysis only.
 
 Pattern flags (reviewed by Conner; a flagged day is credited at 50% and shows "checking" in the game; no automatic bans):
-- Again rate on type 1 reviews under 2% across 300+ reviews in 7 days. (My assumption: real retention is about 80 to 95%, so 5 to 20% Again is normal. That fits FSRS default desired retention 0.9: UNVERIFIED, page not opened, https://github.com/open-spaced-repetition/fsrs4anki/wiki/The-optimal-retention.)
+- Again rate on type 1 reviews under 2% across more than 300 reviews in 7 days. (My assumption: real retention is about 80 to 95%, so 5 to 20% Again is normal. That fits FSRS default desired retention 0.9: UNVERIFIED, page not opened, https://github.com/open-spaced-repetition/fsrs4anki/wiki/The-optimal-retention.)
 - Metronome timing: time variation across a day under 0.25, or more than 40% of times inside one 200 ms band.
 - More than 3 h of reviewing with no gap over 5 min.
 - A day over 3× the player's 14-day median of credited minutes, once that median is above 15 minutes (v3; was 50 reviews).
@@ -239,3 +239,5 @@ What stops faking it:
 - `raw_daily(player_id, day, raw_reviews, raw_seconds, credited_reviews, credited_seconds, due_count, cleared)` for every post, credited or not. `raw_*` use the same filter as the baseline: types 0, 1, 2; time ≥ 1.5 s; seconds = sum of min(time, 30 s).
 - The 30-day baseline (sent at pairing, analysis only, never credit) now has per-day review counts AND minutes with that same filter, so both medians can be compared.
 
+
+v3 final (skeptic round 2 SHIP after wording fix): the low-Again threshold is "more than 300" reviews (so the 50/day fixture is first flagged on day 7, paying 7). The day-7 streak chest is tied to the date the run reached its 7th day, so a late due_list that splits a run after the fact can't pay it twice.
