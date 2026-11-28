@@ -1,8 +1,13 @@
 # Design direction (v2 after 2 reviewers, 2026-11-28)
 
+## Conner's picks (2026-11-28)
+- **Art style:** chunky toy cartoon (concept 1) with claymation's warmth (soft warm light, cozy) but NO clay texture. Concept images in his Canva (round 1: MAHcL7EmmMA chunky, MAHcLwLpxGU clay; round 2: MAHcL5HBUog warm diorama, MAHcL3yQVhQ vinyl-toy, MAHcL0TrNOg characters).
+- **Gameplay:** keep it very Clash-like; backlog-siege idea dropped (he found it confusing). Study plugs in as: free gem-like currency from reviews, daily study chest + streaks, study season pass (candidates; awaiting his confirm). Gems purchasable.
+- Theme: med school leaning, not yet confirmed.
+
 ## Changes from the review (these override the sections below)
 - **Study is a boost, never a gate.** Raids always work on a base energy. Studying adds "rested" bonuses: double loot, Knowledge-only unlocks, streak shields. Knowledge and energy are never sold.
-- **Backlog siege is the core** (V1.md decision V2): overdue cards arrive as enemy waves sized by your backlog; clearing reviews weakens them. Quiz defense is dropped: it rewarded accuracy, which DESIGN.md forbids (grades are self-reported). Rewards come from review counts and time, never grades.
+- ~~Backlog siege is the core~~ (dropped by Conner 2026-11-28) (V1.md decision V2): overdue cards arrive as enemy waves sized by your backlog; clearing reviews weakens them. Quiz defense is dropped: it rewarded accuracy, which DESIGN.md forbids (grades are self-reported). Rewards come from review counts and time, never grades.
 - **Order:** battles → study loop + siege (web, fake review button) → concept art → 10-person med-student playtest (7-day return, reviews/day) → multiplayer only if the playtest is good.
 - **Money:** sell from our own site (membership + cosmetics), not through AnkiWeb; never "Anki" in the name.
 - **Supercell distance, before anything public:** new title (no "Clash of"); retune every number (our SPEC-2 troop/building stats match Clash level 1 almost exactly); themed resource and building names (no Elixir/Gold Mine bundle, no gems); themed enemy instead of goblin camps; our own HUD layout; make the "Town Hall star" our own core building. Mechanics themselves are fine.
