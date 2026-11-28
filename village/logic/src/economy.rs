@@ -109,10 +109,10 @@ impl Kind {
             Kind::GoldStorage => (Res::Elixir, [300, 600, 1200][i]),
             Kind::ElixirStorage => (Res::Gold, [300, 600, 1200][i]),
             Kind::BuilderHut => (Res::Gold, [500, 0, 0][i]),
-            Kind::Barracks => (Res::Elixir, [200, 600, 1500][i]),
-            Kind::ArmyCamp => (Res::Elixir, [250, 750, 1500][i]),
-            Kind::Cannon => (Res::Gold, [250, 700, 1500][i]),
-            Kind::ArcherTower => (Res::Gold, [1000, 2000, 3000][i]),
+            Kind::Barracks => (Res::Elixir, [180, 550, 1400][i]),
+            Kind::ArmyCamp => (Res::Elixir, [220, 700, 1600][i]),
+            Kind::Cannon => (Res::Gold, [300, 800, 1700][i]),
+            Kind::ArcherTower => (Res::Gold, [900, 1800, 3200][i]),
         }
     }
     /// Seconds a builder spends reaching `level`. Zero is instant and needs no builder.
@@ -123,9 +123,9 @@ impl Kind {
             Kind::GoldMine | Kind::ElixirCollector => [10, 30, 60][i],
             Kind::GoldStorage | Kind::ElixirStorage => [15, 40, 80][i],
             Kind::BuilderHut => 0,
-            Kind::Barracks | Kind::ArmyCamp => [20, 60, 120][i],
-            Kind::Cannon => [15, 45, 90][i],
-            Kind::ArcherTower => [60, 120, 180][i],
+            Kind::Barracks | Kind::ArmyCamp => [25, 70, 140][i],
+            Kind::Cannon => [20, 50, 100][i],
+            Kind::ArcherTower => [50, 110, 200][i],
         }
     }
     /// What a mine or collector makes: (resource, per second, holds).
@@ -178,7 +178,7 @@ impl Kind {
     /// Army camp space at a level.
     pub fn housing(self, level: u8) -> u32 {
         match (self, level) {
-            (Kind::ArmyCamp, 1..) => [20, 30, 40][usize::from(level.min(MAX_LEVEL) - 1)],
+            (Kind::ArmyCamp, 1..) => [24, 36, 48][usize::from(level.min(MAX_LEVEL) - 1)],
             _ => 0,
         }
     }
@@ -224,28 +224,31 @@ impl Troop {
     /// Army camp space one takes.
     pub fn housing(self) -> u32 {
         match self {
-            Troop::Brute => 5,
+            Troop::Brute => 6,
             _ => 1,
         }
     }
     /// Elixir to train one.
     pub fn cost(self) -> u32 {
         match self {
-            Troop::Fighter => 25,
-            Troop::Archer => 50,
-            Troop::Brute => 250,
+            Troop::Fighter => 30,
+            Troop::Archer => 60,
+            Troop::Brute => 280,
         }
     }
     pub fn train_secs(self) -> u64 {
         match self {
-            Troop::Fighter => 5,
-            Troop::Archer => 8,
-            Troop::Brute => 20,
+            Troop::Fighter => 6,
+            Troop::Archer => 10,
+            Troop::Brute => 24,
         }
     }
     /// The barracks level that unlocks it.
     pub fn barracks_level(self) -> u8 {
-        self.index() as u8 + 1
+        match self {
+            Troop::Brute => 2,
+            _ => 1,
+        }
     }
 }
 

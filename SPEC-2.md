@@ -70,20 +70,20 @@ You can train a small army in your village, attack computer-made goblin camps, w
 - **Phase A:** camera, look (Kenney CC0 models, hand-made shapes as fallback), army buildings and training, home defenses, save v2.
 - **Phase B:** battle sim, campaign, battle and result screens.
 
-## Numbers (first pass; tune later)
+## Numbers (retuned 2026-11-28 so none match Clash's tables; troops: Fighter 30 elixir/6 s/1 space, Archer 60/10 s/1, Brute 280/24 s/6; battle 150 s)
 
 | Building | Size | How many (TH1/2/3) | Cost (L1/L2/L3) | Build time | Notes |
 |---|---|---|---|---|---|
-| Barracks | 3 | 1/1/1 | 200/600/1500 elixir | 20/60/120 s | L2 unlocks Archer, L3 Brute |
-| Army Camp | 4 | 1/1/2 | 250/750/1500 elixir | 20/60/120 s | housing 20/30/40 |
-| Cannon | 3 | 2/2/3 | 250/700/1500 gold | 15/45/90 s | range 7, damage 9/12/16 every 0.8 s, ground |
-| Archer Tower | 3 | 0/1/2 | 1000/2000/3000 gold | 60/120/180 s | range 8, damage 6/8/10 every 0.5 s |
+| Barracks | 3 | 1/1/1 | 180/550/1400 elixir | 25/70/140 s | L1 Fighter + Archer, L2 unlocks Brute |
+| Army Camp | 4 | 1/1/2 | 220/700/1600 elixir | 25/70/140 s | housing 24/36/48 |
+| Cannon | 3 | 2/2/3 | 300/800/1700 gold | 20/50/100 s | range 7.5, damage 10/14/18 every 0.9 s, ground |
+| Archer Tower | 3 | 0/1/2 | 900/1800/3200 gold | 50/110/200 s | range 8.5, damage 5/7/9 every 0.45 s |
 
 | Troop | Hit points | Damage per second | Speed (tiles/s) | Range | Targets |
 |---|---|---|---|---|---|
-| Fighter | 45 | 8 | 1.6 | 0.6 | nearest building |
-| Archer | 20 | 7 | 1.6 | 3.5 | nearest building |
-| Brute | 300 | 11 | 1.0 | 0.6 | defenses first, then anything |
+| Fighter | 55 | 9 | 1.5 | 0.7 | nearest building |
+| Archer | 24 | 8 | 1.5 | 4.0 | nearest building |
+| Brute | 360 | 12 | 0.9 | 0.7 | defenses first, then anything |
 
 Camp building hit points: Town Hall 400, defenses 300, storages 250, mines/collectors 200.
 

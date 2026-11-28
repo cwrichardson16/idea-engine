@@ -568,20 +568,21 @@ fn training_needs_a_barracks_costs_elixir_and_takes_time() {
     let mut t = town_with(1000, 1000);
     assert_eq!(t.can_train(Troop::Fighter), Err("Build a Barracks".into()));
     let mut t2 = army_town();
-    assert_eq!(t2.housing_cap(), 20);
+    assert_eq!(t2.housing_cap(), 24);
     t2.train(Troop::Fighter, 0).unwrap();
     t2.train(Troop::Fighter, 0).unwrap();
-    assert_eq!(t2.elixir, 950);
-    assert_eq!(t2.training_left(0), 5);
-    t2.settle(4_999);
+    assert_eq!(t2.elixir, 940);
+    assert_eq!(t2.training_left(0), 6);
+    t2.settle(5_999);
     assert_eq!(t2.trained(Troop::Fighter), 0);
-    t2.settle(5_000);
+    t2.settle(6_000);
     assert_eq!(t2.trained(Troop::Fighter), 1);
-    t2.settle(10_000);
+    t2.settle(12_000);
     assert_eq!(t2.trained(Troop::Fighter), 2);
     assert!(t2.queue.is_empty());
-    // Archers need barracks level 2.
-    assert_eq!(t2.can_train(Troop::Archer), Err("Needs Barracks level 2".into()));
+    // Archers train at level 1; Brutes need barracks level 2.
+    assert!(t2.can_train(Troop::Archer).is_ok());
+    assert_eq!(t2.can_train(Troop::Brute), Err("Needs Barracks level 2".into()));
     t.gold = 0;
 }
 
@@ -592,21 +593,25 @@ fn housing_counts_queued_troops_and_cancelling_refunds_in_full() {
         t.train(Troop::Fighter, 0).unwrap();
     }
     assert_eq!(t.can_train(Troop::Fighter), Err("Queue full".into()));
-    t.settle(50_000);
+    t.settle(60_000);
     assert_eq!(t.trained(Troop::Fighter), 10);
     for _ in 0..10 {
-        t.train(Troop::Fighter, 50_000).unwrap();
+        t.train(Troop::Fighter, 60_000).unwrap();
     }
-    assert_eq!(t.housing_used(), 20);
     t.settle(200_000);
+    for _ in 0..4 {
+        t.train(Troop::Fighter, 200_000).unwrap();
+    }
+    assert_eq!(t.housing_used(), 24);
+    t.settle(400_000);
     assert_eq!(t.can_train(Troop::Fighter), Err("Army camps full".into()));
     let mut q = army_town();
     q.train(Troop::Fighter, 0).unwrap();
     q.train(Troop::Fighter, 0).unwrap();
     let before = q.elixir;
     q.cancel_training(0, 3_000).unwrap();
-    assert_eq!(q.elixir, before + 25);
-    assert_eq!(q.training_left(3_000), 5, "the next one starts from the cancel");
+    assert_eq!(q.elixir, before + 30);
+    assert_eq!(q.training_left(3_000), 6, "the next one starts from the cancel");
 }
 
 #[test]
