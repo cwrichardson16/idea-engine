@@ -1000,3 +1000,32 @@ fn offline_keeps_playing_and_retries() {
     sim.run(16_000.0);
     assert!(ask(&sim).starts_with("2\tjoin"));
 }
+
+#[test]
+fn signing_in_again_after_the_token_expires_keeps_newer_local_play() {
+    let mut sim = Sim::<Village>::new(Options::default()).unwrap();
+    net(&mut sim, "");
+    sim.post("cred p@players.invalid secret");
+    sim.post("load 1795850000000 ");
+    sim.run(100.0);
+    net(&mut sim, "1\tok\tTOKEN");
+    net(&mut sim, "2\tok\t0\t\t");
+    sim.post("devmode on");
+    sim.post("dev rich");
+    sim.run(6000.0);
+    let up = ask(&sim);
+    let sent_text = up.rsplit('\t').next().unwrap().to_string();
+    net(&mut sim, "3\tok\t1");
+    // More play, then the token expires on the next upload.
+    sim.post("dev army");
+    sim.run(6000.0);
+    assert!(ask(&sim).starts_with("4\tsave"));
+    net(&mut sim, "4\tauth");
+    net(&mut sim, "5\tok\tTOKEN2");
+    // The cloud still holds this device's own upload (version 1): keep playing on the newer local village.
+    let army_before = sim.world().resource::<Town>().army.clone();
+    net(&mut sim, &format!("6\tok\t1\t\t{sent_text}"));
+    assert_eq!(sim.world().resource::<Town>().army, army_before);
+    sim.run(6000.0);
+    assert!(ask(&sim).starts_with("7\tsave\tTOKEN2\t1\t"), "{:?}", ask(&sim));
+}

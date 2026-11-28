@@ -51,6 +51,9 @@ pub struct Cloud {
     pub local_wall: f64,
     /// After a conflict: the next fetch takes the cloud save whatever its time.
     pub take_cloud: bool,
+    /// Has this device fetched once since Play? After that, only a higher
+    /// cloud version (another device) replaces the village here.
+    pub synced: bool,
 }
 
 const RETRY_MS: u64 = 15_000;
@@ -221,7 +224,8 @@ fn fetched(w: &mut World, rest: &[&str]) {
     let text = rest.get(2).copied().unwrap_or("");
     let take = {
         let c = w.resource::<Cloud>();
-        !text.is_empty() && (c.take_cloud || wall_of(text) > c.local_wall)
+        !text.is_empty()
+            && (c.take_cloud || if c.synced { version > c.version } else { wall_of(text) > c.local_wall })
     };
     if take {
         adopt(w, text);
@@ -232,6 +236,7 @@ fn fetched(w: &mut World, rest: &[&str]) {
         c.version = version;
         c.step = Step::Ready;
         c.take_cloud = false;
+        c.synced = true;
         c.status = "☁️ saved".into();
         // Upload after this tick's save has captured what the events changed.
         c.last_put = now;
