@@ -52,6 +52,10 @@ shape Hud
   elixir_cap: number
   gems: number
   knowledge: number
+  study_today: number
+  study_next: number
+  streak: number
+  power_secs: number
   builders_free: number
   builders: number
   town_hall: number
@@ -86,6 +90,7 @@ shape Hud
 
 shape Time
   epochAtZero: number
+  utcOffset: number
 
 component Village
   state playing = false
@@ -104,6 +109,7 @@ component Village
   action play
     playing = true
     postMessage(`load ${time.epochAtZero + performanceNow()} ${village}`, "world")
+    postMessage(`tz ${time.utcOffset}`, "world")
     if devMode
       postMessage("devmode on", "world")
 
@@ -170,6 +176,15 @@ component Village
                   text "Dev TH+1"
                 button press=send("review") testId="review" aria-label="Do a review (test)" padding=10 border-radius=10 background-color="#1f7a4d" box-shadow="inset 0 -4px 0 #00000055, 0 2px 0 #00000088" border-width=2 border-style="solid" border-color="#00000066"
                   text "+ Review (test)"
+          // Studying today: reviews, the next chest, the streak, and a power hour when one is on.
+          row testId="study" position="absolute" top=80 right=16 gap=8 padding=10 border-radius=12 background-color="#0b3b22e6" align-items="center" box-shadow="inset 0 -4px 0 #00000055, 0 2px 0 #00000088" border-width=2 border-style="solid" border-color="#00000066"
+            text `📖 ${hud.study_today} today` testId="study-today" font-variant-numeric="tabular-nums"
+            if hud.study_next > 0
+              text `🎁 at ${hud.study_next}` testId="study-next" font-size=13 color="#b7f5c0"
+            if hud.streak > 0
+              text `🔥 ${hud.streak} ${hud.streak == 1 ? "day" : "days"}` testId="study-streak"
+            if hud.power_secs > 0
+              text `⚡ ${ceil(hud.power_secs / 60)} min` testId="study-power" color="#ffe082"
           if hud.toast != ""
             text hud.toast testId="toast" aria-live="polite" position="absolute" top=80 left=16 padding=12 border-radius=10 background-color="#000000cc" box-shadow="inset 0 -4px 0 #00000055, 0 2px 0 #00000088" border-width=2 border-style="solid" border-color="#00000066"
           // Placing: a ghost follows taps; confirm or cancel.

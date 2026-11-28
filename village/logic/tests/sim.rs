@@ -281,7 +281,7 @@ fn skipping_costs_gems_or_knowledge_by_time_left() {
     assert_eq!(t.skip_cost(id, 0, Pay::Gems), Some(1));
     assert_eq!(t.skip_cost(id, 0, Pay::Knowledge), Some(1));
     assert_eq!(t.skip(id, 0, Pay::Knowledge).unwrap_err(), "Need 1 Knowledge");
-    t.review();
+    t.knowledge += 1;
     t.skip(id, 0, Pay::Knowledge).unwrap();
     assert_eq!((t.knowledge, t.get(id).unwrap().level), (0, 1));
     assert_eq!(t.builders_free(), 1);
@@ -295,7 +295,7 @@ fn gem_skip_rounds_up() {
     t.upgrade(th, 0).unwrap(); // 60 s
     assert_eq!(t.skip_cost(th, 0, Pay::Gems), Some(6));
     assert_eq!(t.skip_cost(th, 59_001, Pay::Gems), Some(1));
-    assert_eq!(t.skip_cost(th, 0, Pay::Knowledge), Some(3));
+    assert_eq!(t.skip_cost(th, 0, Pay::Knowledge), Some(1), "1 Knowledge = 60 s");
     t.skip(th, 1000, Pay::Gems).unwrap();
     assert_eq!((t.gems, t.town_hall_level()), (44, 2));
 }
@@ -313,10 +313,11 @@ fn knowledge_only_comes_from_reviews_and_dev_needs_the_switch() {
     assert_eq!(sim.world().resource::<Town>().knowledge, 0);
     assert!(sim.world().resource::<Town>().gold < 5000);
     sim.post("devmode on");
-    sim.post("review");
-    sim.post("review");
+    for _ in 0..10 {
+        sim.post("review");
+    }
     sim.run(100.0);
-    assert_eq!(sim.world().resource::<Town>().knowledge, 2);
+    assert_eq!(sim.world().resource::<Town>().knowledge, 2, "1 Knowledge per 5 reviews");
 }
 
 // ---- Picking ----
@@ -363,8 +364,10 @@ fn a_town_round_trips_through_its_save_text() {
     let mut t = town_with(1000, 1000);
     t.place(Kind::GoldMine, 0, 0, 0).unwrap();
     t.place(Kind::BuilderHut, 5, 0, 0).unwrap();
-    t.review();
+    t.add_reviews(260, 20_000, 0);
+    assert!(t.study.reviews == 260 && t.study.power_until > 0);
     let text = t.encode();
+    assert_eq!(Town::decode(&text).unwrap().study, t.study);
     let back = Town::decode(&text).unwrap();
     assert_eq!(back.encode(), text);
     assert_eq!(back.buildings, t.buildings);
@@ -759,4 +762,92 @@ fn a_save_mid_raid_keeps_the_army_reduced_and_brings_no_loot() {
     let back = Town::decode(&text).unwrap();
     assert_eq!(back.army[0], 6);
     assert_eq!(back.stars[0], 0);
+}
+
+
+// ---- Study (SPEC-3 T2) ----
+
+const DAY: u32 = 20_000;
+const H: u64 = 3_600_000;
+
+#[test]
+fn reviews_pay_knowledge_chests_once_a_day_and_roll_at_4am() {
+    let mut t = town_with(0, 0);
+    let said = t.add_reviews(49, DAY, 0);
+    assert!(said.is_empty());
+    assert_eq!((t.knowledge, t.study.toward), (9, 4));
+    let said = t.add_reviews(1, DAY, 0);
+    assert!(said.iter().any(|s| s.contains("streak")) && said.iter().any(|s| s.contains("Chest 1")), "{said:?}");
+    let gold = t.gold;
+    assert!(gold > 0);
+    // The same tier never pays twice in a day.
+    assert!(!t.add_reviews(10, DAY, 0).iter().any(|s| s.contains("Chest 1")));
+    // A new day opens the chests again.
+    assert!(t.add_reviews(50, DAY + 1, 0).iter().any(|s| s.contains("Chest 1")));
+    // A late report for an old day pays only Knowledge.
+    let k = t.knowledge;
+    assert!(t.add_reviews(500, DAY, 0).is_empty());
+    assert_eq!(t.knowledge, k + 100);
+    // 4 am local rollover: 03:59 and 04:00 on the same UTC date are different review days.
+    let midnight = 1_764_288_000_000u64; // 2025-11-28 00:00 UTC
+    assert_eq!(review_day(midnight + 4 * H - 60_000, 0) + 1, review_day(midnight + 4 * H, 0));
+    // Offsets move it: 04:00 in UTC-7 is 11:00 UTC.
+    assert_eq!(review_day(midnight + 11 * H, -420), review_day(midnight + 4 * H, 0));
+}
+
+#[test]
+fn streaks_count_days_in_a_row_and_break_after_a_missed_day() {
+    let mut t = town_with(0, 0);
+    for d in 0..6 {
+        t.add_reviews(50, DAY + d, 0);
+    }
+    assert_eq!(t.study.streak_on(DAY + 5), 6);
+    let gems = t.gems;
+    let said = t.add_reviews(50, DAY + 6, 0);
+    assert_eq!(t.study.streak, 7);
+    assert!(said.iter().any(|s| s.contains("Week chest")) && t.gems == gems + 25, "{said:?}");
+    // Skipping a day shows the streak as broken, and the next study day starts at 1.
+    assert_eq!(t.study.streak_on(DAY + 8), 0);
+    t.add_reviews(50, DAY + 8, 0);
+    assert_eq!(t.study.streak, 1);
+}
+
+#[test]
+fn power_hours_double_production_and_capacity_then_expire() {
+    let mut t = town_with(1000, 1000);
+    let id = t.place(Kind::GoldMine, 0, 0, 0).unwrap();
+    t.settle(20_000);
+    let mark = t.get(id).unwrap().mark;
+    // 100 reviews: one power hour starting now.
+    t.add_reviews(100, DAY, mark);
+    assert!(t.study.powered(mark) && !t.study.powered(mark + H));
+    let b = t.get(id).unwrap().clone();
+    // Level 1 makes 2/s and holds 100: in power it makes 4/s and holds 200.
+    assert_eq!(b.waiting_in(mark + 10_000, t.power()), 40);
+    assert_eq!(b.waiting_in(mark + 100_000, t.power()), 200);
+    assert_eq!(b.waiting(mark + 100_000), 100, "without the window: normal cap");
+    // A 4-hour cap per day.
+    t.add_reviews(900, DAY, mark);
+    assert_eq!(t.study.power_today, 4);
+    assert_eq!(t.study.power_until, mark + 4 * H);
+}
+
+#[test]
+fn training_is_twice_as_fast_in_a_power_hour() {
+    let mut t = army_town();
+    let normal = t.train_ms(Troop::Fighter, 0);
+    t.add_reviews(100, DAY, 0);
+    assert_eq!(t.train_ms(Troop::Fighter, 0) * 2, normal);
+    assert_eq!(t.train_ms(Troop::Fighter, H), normal);
+}
+
+#[test]
+fn a_save_without_study_still_loads_and_bad_study_is_refused() {
+    let t = town_with(500, 500);
+    let text = t.encode();
+    let old: Vec<&str> = text.split('#').collect();
+    let pre_study = old[..5].join("#");
+    assert_eq!(Town::decode(&pre_study).unwrap().study, Study::default());
+    assert!(Town::decode(&format!("{pre_study}#1,2,3")).is_none());
+    assert!(Town::decode(&format!("{pre_study}#1,2,3,4,5,6,7,8,x")).is_none());
 }

@@ -16,7 +16,52 @@ pub const START_GEMS: u32 = 50;
 /// Speed-ups: one gem finishes this many seconds of a timer (rounded up).
 pub const GEM_SECONDS: u64 = 10;
 /// Speed-ups: one Knowledge finishes this many seconds (study pays better than gems).
-pub const KNOWLEDGE_SECONDS: u64 = 20;
+pub const KNOWLEDGE_SECONDS: u64 = 60;
+/// Study (SPEC-3 T2): counted reviews per Knowledge.
+pub const REVIEWS_PER_KNOWLEDGE: u32 = 5;
+/// Daily chest tiers: reviews in one review day (4 am to 4 am) that open each chest.
+pub const CHEST_TIERS: [u32; 4] = [50, 200, 400, 800];
+/// A streak day needs this many reviews.
+pub const STREAK_REVIEWS: u32 = 50;
+/// Every this many reviews in a day adds a power hour, up to `POWER_HOURS_MAX` a day.
+pub const POWER_REVIEWS: u32 = 100;
+pub const POWER_HOURS_MAX: u32 = 4;
+const HOUR_MS: u64 = 3_600_000;
+
+/// What studying is worth today, and the power-hour window, in one place.
+#[derive(Clone, Debug, Default, PartialEq, Data)]
+pub struct Study {
+    /// The review day these counts belong to (days since 1970, rolling at 4 am local).
+    pub day: u32,
+    pub reviews: u32,
+    /// Bit i: chest tier i already opened today.
+    pub chests: u32,
+    pub power_today: u32,
+    /// Reviews counted toward the next Knowledge.
+    pub toward: u32,
+    /// Days in a row with at least `STREAK_REVIEWS`, and the last such day.
+    pub streak: u32,
+    pub streak_day: u32,
+    /// Power hour, in village ms: production and capacity doubled, training halved.
+    pub power_from: u64,
+    pub power_until: u64,
+}
+
+impl Study {
+    pub fn powered(&self, now: u64) -> bool {
+        now >= self.power_from && now < self.power_until
+    }
+    /// The streak as the player sees it today: broken once a whole day passed without one.
+    pub fn streak_on(&self, day: u32) -> u32 {
+        if self.streak_day + 1 >= day { self.streak } else { 0 }
+    }
+}
+
+/// The review day of a real wall-clock time: rolls over at 4 am local, like Anki.
+pub fn review_day(wall_ms: u64, utc_offset_min: i64) -> u32 {
+    let local = wall_ms as i64 + utc_offset_min * 60_000 - 4 * HOUR_MS as i64;
+    (local.max(0) / 86_400_000) as u32
+}
 
 const MINE_COST: [u32; 8] = [150, 300, 700, 1400, 3000, 6000, 12000, 24000];
 const STORE_COST: [u32; 8] = [300, 600, 1200, 3000, 8000, 20000, 50000, 100000];
@@ -286,19 +331,31 @@ impl Building {
     /// Thousandths of a unit waiting to be collected at `now`. Nothing is
     /// made while it is being built or upgraded.
     pub fn waiting_milli(&self, now: u64) -> u64 {
+        self.waiting_milli_in(now, (0, 0))
+    }
+    /// As `waiting_milli`, with a power-hour window `(from, until)`: production
+    /// doubles inside it, and the mine holds twice as much until it is next collected.
+    pub fn waiting_milli_in(&self, now: u64, (from, until): (u64, u64)) -> u64 {
         let Some((_, rate, holds)) = self.kind.production(self.level) else {
             return 0;
         };
         let made = if self.busy() {
             0
         } else {
-            rate * now.saturating_sub(self.mark)
+            let boosted = now.min(until).saturating_sub(self.mark.max(from));
+            rate * (now.saturating_sub(self.mark) + boosted)
         };
-        (self.banked_milli + made).min(holds * 1000)
+        let boosted_since_mark = until > self.mark && from < until;
+        let cap = if boosted_since_mark { holds * 2000 } else { holds * 1000 };
+        (self.banked_milli + made).min(cap.max(self.banked_milli))
     }
     /// Whole units waiting at `now`.
     pub fn waiting(&self, now: u64) -> u32 {
         (self.waiting_milli(now) / 1000) as u32
+    }
+    /// Whole units waiting at `now` with a power-hour window.
+    pub fn waiting_in(&self, now: u64, power: (u64, u64)) -> u32 {
+        (self.waiting_milli_in(now, power) / 1000) as u32
     }
 }
 
@@ -320,6 +377,8 @@ pub struct Town {
     pub stars: Vec<u8>,
     /// Per campaign camp, a bitmask of its buildings already looted.
     pub looted: Vec<u32>,
+    /// Today's studying, the streak and the power hour (SPEC-3 T2).
+    pub study: Study,
 }
 
 /// How many campaign camps there are (battle::CAMPS).
@@ -356,6 +415,7 @@ impl Town {
             queue_start: 0,
             stars: vec![0; CAMP_COUNT],
             looted: vec![0; CAMP_COUNT],
+            study: Study::default(),
         }
     }
 
@@ -433,20 +493,25 @@ impl Town {
         Ok(())
     }
     /// A refund always comes back in full, even over the cap.
+    /// How long `t` trains when it starts at `start`: half as long in a power hour.
+    pub fn train_ms(&self, t: Troop, start: u64) -> u64 {
+        let ms = t.train_secs() * 1000;
+        if self.study.powered(start) { ms / 2 } else { ms }
+    }
     fn earn_refund(&mut self, n: u32) {
         self.elixir = self.elixir.saturating_add(n);
     }
     /// Seconds until the troop in training is ready (rounded up), if any.
     pub fn training_left(&self, now: u64) -> u64 {
         match self.queue.first() {
-            Some(t) => (self.queue_start + t.train_secs() * 1000).saturating_sub(now).div_ceil(1000),
+            Some(&t) => (self.queue_start + self.train_ms(t, self.queue_start)).saturating_sub(now).div_ceil(1000),
             None => 0,
         }
     }
     /// Moves every troop whose training ended by `now` into the army.
     pub fn settle_training(&mut self, now: u64) {
         while let Some(&t) = self.queue.first() {
-            let done = self.queue_start + t.train_secs() * 1000;
+            let done = self.queue_start + self.train_ms(t, self.queue_start);
             if done > now {
                 break;
             }
@@ -658,7 +723,7 @@ impl Town {
         let secs = self.buildings[i].kind.build_secs(next);
         let b = &mut self.buildings[i];
         // Bank what it made so far; it pauses while upgrading.
-        b.banked_milli = b.waiting_milli(now);
+        b.banked_milli = b.waiting_milli_in(now, (self.study.power_from, self.study.power_until));
         b.mark = now;
         b.started_at = now;
         b.done_at = now + secs * 1000;
@@ -704,7 +769,7 @@ impl Town {
         let Some((r, _, _)) = b.kind.production(b.level) else {
             return 0;
         };
-        let have = b.waiting_milli(now);
+        let have = b.waiting_milli_in(now, (self.study.power_from, self.study.power_until));
         let busy = b.busy();
         let moved = self.earn(r, (have / 1000) as u32);
         let b = &mut self.buildings[i];
@@ -776,6 +841,12 @@ impl Town {
         let stars: Vec<String> = self.stars.iter().map(|n| n.to_string()).collect();
         let looted: Vec<String> = self.looted.iter().map(|n| n.to_string()).collect();
         out += &format!("#{}#{}", stars.join(","), looted.join(","));
+        // Since study (SPEC-3 T2): "#day,reviews,chests,power_today,toward,streak,streak_day,power_from,power_until".
+        let s = &self.study;
+        out += &format!(
+            "#{},{},{},{},{},{},{},{},{}",
+            s.day, s.reviews, s.chests, s.power_today, s.toward, s.streak, s.streak_day, s.power_from, s.power_until
+        );
         out
     }
 
@@ -785,6 +856,30 @@ impl Town {
         let mut sections = text.split('#');
         let text = sections.next()?;
         let (a, q, st, lo) = (sections.next(), sections.next(), sections.next(), sections.next());
+        let study = match sections.next() {
+            None => Study::default(),
+            Some(sd) => {
+                if lo.is_none() {
+                    return None;
+                }
+                let n: Vec<u64> = sd.split(',').map(|n| n.parse().ok()).collect::<Option<_>>()?;
+                let [day, reviews, chests, power_today, toward, streak, streak_day, power_from, power_until] = n[..] else {
+                    return None;
+                };
+                let small = |v: u64| u32::try_from(v).ok();
+                Study {
+                    day: small(day)?,
+                    reviews: small(reviews)?,
+                    chests: small(chests)?,
+                    power_today: small(power_today)?,
+                    toward: small(toward)?,
+                    streak: small(streak)?,
+                    streak_day: small(streak_day)?,
+                    power_from,
+                    power_until,
+                }
+            }
+        };
         if sections.next().is_some() {
             return None;
         }
@@ -856,6 +951,7 @@ impl Town {
             queue_start,
             stars,
             looted,
+            study,
         };
         town.valid().then_some(town)
     }
@@ -906,9 +1002,79 @@ impl Town {
             && self.elixir <= ec.max(START_ELIXIR)
     }
 
-    /// The study hook: one due review earns one Knowledge. (Anki sends these later.)
-    pub fn review(&mut self) {
-        self.knowledge += 1;
+    /// The power-hour window, for production.
+    pub fn power(&self) -> (u64, u64) {
+        (self.study.power_from, self.study.power_until)
+    }
+    /// Banks every producer's output at `now` (before the power window moves).
+    fn bank_all(&mut self, now: u64) {
+        let power = self.power();
+        for b in &mut self.buildings {
+            if b.kind.production(b.level).is_some() && !b.busy() {
+                b.banked_milli = b.waiting_milli_in(now, power);
+                b.mark = now;
+            }
+        }
+    }
+    /// The study hook: `n` counted reviews on review day `day` at village time `now`.
+    /// Pays Knowledge, the day's chests, the streak and power hours; returns what to tell the player.
+    pub fn add_reviews(&mut self, n: u32, day: u32, now: u64) -> Vec<String> {
+        let mut said = Vec::new();
+        let n = n.min(5_000);
+        let all = self.study.toward + n;
+        self.knowledge = self.knowledge.saturating_add(all / REVIEWS_PER_KNOWLEDGE);
+        self.study.toward = all % REVIEWS_PER_KNOWLEDGE;
+        if day < self.study.day {
+            // A late report for an earlier day: Knowledge only.
+            return said;
+        }
+        if day > self.study.day {
+            self.study.day = day;
+            self.study.reviews = 0;
+            self.study.chests = 0;
+            self.study.power_today = 0;
+        }
+        let before = self.study.reviews;
+        let after = before + n;
+        self.study.reviews = after;
+        let th = u32::from(self.town_hall_level());
+        if before < STREAK_REVIEWS && after >= STREAK_REVIEWS && self.study.streak_day != day {
+            self.study.streak = if self.study.streak > 0 && self.study.streak_day + 1 == day { self.study.streak + 1 } else { 1 };
+            self.study.streak_day = day;
+            let s = self.study.streak;
+            said.push(format!("🔥 {s}-day study streak"));
+            if s % 7 == 0 {
+                let g = self.earn(Res::Gold, 3000 * th);
+                let e = self.earn(Res::Elixir, 3000 * th);
+                self.gems += 25;
+                said.push(format!("🎁 Week chest: +{g} 💵 +{e} ☕ +25 🩺"));
+            }
+        }
+        let streak = self.study.streak_on(day).min(7);
+        for (i, &need) in CHEST_TIERS.iter().enumerate() {
+            if after >= need && self.study.chests & (1 << i) == 0 {
+                self.study.chests |= 1 << i;
+                let base = [150, 400, 800, 1600][i] * th;
+                let pay = base + base * streak / 10;
+                let g = self.earn(Res::Gold, pay);
+                let e = self.earn(Res::Elixir, pay);
+                said.push(format!("🎁 Chest {}: +{g} 💵 +{e} ☕", i + 1));
+            }
+        }
+        let due = (after / POWER_REVIEWS).min(POWER_HOURS_MAX);
+        if self.study.power_today < due {
+            self.bank_all(now);
+            let add = u64::from(due - self.study.power_today) * HOUR_MS;
+            self.study.power_today = due;
+            if now >= self.study.power_until {
+                self.study.power_from = now;
+                self.study.power_until = now + add;
+            } else {
+                self.study.power_until += add;
+            }
+            said.push("⚡ Power hour: double production and training".into());
+        }
+        said
     }
 
     /// Where a building of `kind` would first fit, scanning from the middle out.

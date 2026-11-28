@@ -11,6 +11,30 @@ pub mod fight;
 #[derive(Default, Resource)]
 pub struct DevMode(pub bool);
 
+/// The player's offset from UTC in minutes (the page sends `tz <minutes>`), for the 4 am review day.
+#[derive(Default, Resource)]
+pub struct Tz(pub i64);
+
+/// Real Unix time in ms, from the host clock the world has seen (0 before it has seen one).
+pub fn wall_ms(w: &World) -> u64 {
+    let c = w.resource::<Clock>();
+    if c.epoch <= 0.0 {
+        return 0;
+    }
+    let ms = c.epoch + (w.tick().saturating_sub(c.epoch_tick)) as f64 * 1000.0 / f64::from(w.hz());
+    ms.max(0.0) as u64
+}
+
+/// Counts `n` reviews now and tells the player what they earned.
+pub fn study(w: &mut World, n: u32) {
+    let day = economy::review_day(wall_ms(w), w.resource::<Tz>().0);
+    let now = now_ms(w);
+    let said = w.resource_mut::<Town>().add_reviews(n, day, now);
+    if !said.is_empty() {
+        toast(w, said.join(" · "));
+    }
+}
+
 use economy::{Kind, Pay, Res, Town, Troop, GRID, KINDS, TROOPS};
 use exact_game::*;
 
@@ -30,7 +54,7 @@ pub struct Options {
 pub struct SaveContract {
     pub version: u32,
 }
-pub const SAVE_CONTRACT: u32 = 3;
+pub const SAVE_CONTRACT: u32 = 4;
 
 /// Village time: world time plus every span spent away.
 #[derive(Default, Resource)]
@@ -183,6 +207,11 @@ pub struct Hud {
     pub elixir_cap: u32,
     pub gems: u32,
     pub knowledge: u32,
+    /// Study today: reviews, the next chest's goal (0 when all opened), the streak, power-hour seconds left.
+    pub study_today: u32,
+    pub study_next: u32,
+    pub streak: u32,
+    pub power_secs: u32,
     pub builders_free: u32,
     pub builders: u32,
     pub town_hall: u32,
@@ -317,6 +346,7 @@ impl Game for Village {
         w.insert_resource(Shown::default());
         w.insert_resource(fight::Fight::default());
         w.insert_resource(DevMode::default());
+        w.insert_resource(Tz::default());
         draw(w);
     }
 
@@ -542,7 +572,12 @@ pub fn command(w: &mut World, cmd: &str) {
         }
         "devmode" => w.resource_mut::<DevMode>().0 = arg == "on",
         "review" | "dev" if !w.resource::<DevMode>().0 => {}
-        "review" => w.resource_mut::<Town>().review(),
+        "review" => study(w, 1),
+        "tz" => {
+            if let Ok(m) = arg.parse::<i64>() {
+                w.resource_mut::<Tz>().0 = m.clamp(-14 * 60, 14 * 60);
+            }
+        }
         "train" => {
             let Some(t) = Troop::from_key(arg) else { return };
             let done = w.resource_mut::<Town>().train(t, now);
@@ -595,8 +630,8 @@ pub fn tap_tile(w: &mut World, x: i32, z: i32) {
             let town = w.resource::<Town>();
             let (gc, ec) = town.caps();
             town.get(hit).is_some_and(|b| match b.kind.production(b.level) {
-                Some((Res::Gold, ..)) => town.gold >= gc && b.waiting(now) > 0,
-                Some((Res::Elixir, ..)) => town.elixir >= ec && b.waiting(now) > 0,
+                Some((Res::Gold, ..)) => town.gold >= gc && b.waiting_in(now, town.power()) > 0,
+                Some((Res::Elixir, ..)) => town.elixir >= ec && b.waiting_in(now, town.power()) > 0,
                 None => false,
             })
         };
@@ -941,7 +976,7 @@ fn draw(w: &mut World) {
                 let ready = b
                     .kind
                     .production(b.level)
-                    .is_some_and(|(_, _, holds)| u64::from(b.waiting(now)) * 10 >= holds);
+                    .is_some_and(|(_, _, holds)| u64::from(b.waiting_in(now, w.resource::<Town>().power())) * 10 >= holds);
                 let sig = format!("{:?}{}{}{}{}", b.kind, b.level, b.busy(), ready, b.id == selected);
                 (b.id, sig, b.kind, b.x, b.z, b.level, b.busy(), ready)
             })
@@ -1052,6 +1087,7 @@ fn res_name(r: Res) -> String {
 /// The HUD as the player sees it now.
 pub fn hud(w: &World, now: u64, place_reason: String) -> Hud {
     let town = w.resource::<Town>();
+    let today = economy::review_day(wall_ms(w), w.resource::<Tz>().0);
     let ui = w.resource::<Ui>();
     let (gold_cap, elixir_cap) = town.caps();
     let th = town.town_hall_level();
@@ -1088,7 +1124,7 @@ pub fn hud(w: &World, now: u64, place_reason: String) -> Hud {
                 } else {
                     0
                 },
-                waiting: b.waiting(now),
+                waiting: b.waiting_in(now, town.power()),
                 res: b
                     .kind
                     .production(b.level.max(1))
@@ -1110,6 +1146,14 @@ pub fn hud(w: &World, now: u64, place_reason: String) -> Hud {
         elixir_cap,
         gems: town.gems,
         knowledge: town.knowledge,
+        study_today: if town.study.day == today { town.study.reviews } else { 0 },
+        study_next: economy::CHEST_TIERS
+            .iter()
+            .enumerate()
+            .find(|&(i, _)| town.study.day != today || town.study.chests & (1 << i) == 0)
+            .map_or(0, |(_, &n)| n),
+        streak: town.study.streak_on(today),
+        power_secs: (town.study.power_until.saturating_sub(now) / 1000).min(u64::from(u32::MAX)) as u32,
         builders_free: town.builders_free() as u32,
         builders: town.builders() as u32,
         town_hall: u32::from(th),

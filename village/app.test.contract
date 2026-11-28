@@ -60,3 +60,22 @@ test "A raid: pick a camp, drop troops, see the result, go home"
   tap "home"
   clock +200
   expect tree has "raid-open"
+
+test "Reviews count toward Knowledge and show in the study panel"
+  tap "play"
+  clock +500
+  expect text "study-today" == "📖 0 today"
+  tap "hud-th"
+  tap "hud-th"
+  tap "hud-th"
+  tap "hud-th"
+  tap "hud-th"
+  clock +200
+  tap "review"
+  tap "review"
+  tap "review"
+  tap "review"
+  tap "review"
+  clock +200
+  expect text "study-today" == "📖 5 today"
+  expect text "hud-knowledge" == "📚 1"
