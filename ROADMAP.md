@@ -124,3 +124,9 @@ Every step also needs: `bun exact.mjs test-rust` green, `contract build --json` 
 - Cut for the test: leagues and trophy matchmaking, obstacles, streak-earned 3rd builder, visual replays, clans, spells.
 - Accepted limits: chunky faceted low-poly style; the Lancer may become a foot Knight; no push notifications on web; a numbers change needs a redeploy (Exact tables are baked), so "tuning without a release" means a quick redeploy under the hotfix rule.
 - Risks and their checks: empty raid list (`small_pool_has_targets`); week-1 balance (`seven_day_sim` bars); Anki friction (real-Anki check + guide); iPhone WebGPU (step 2 phone check, Conner's call if it fails); lost progress (save safety tests).
+
+## Round 3 amendments (product reviewer SHIP)
+- Visits and raw counts use the player's Anki day: the game sends its UTC offset with get_state/put_save (or a `p_tz` arg); a review counts on the day it was done (revlog timestamp), not the day it arrived.
+- Baseline median counts all 30 days, including zero-review days.
+- Phone fps bar: if a mid-range Android is under 20 fps, first retry at the engine's lower quality setting before calling it a fail (the engine's starter runs ~16 fps on a Pixel 5). If no on-screen fps counter exists, step 2 adds one behind dev mode.
+- Daily database backup needs the database password: a Conner item (or rely on the free plan's backups if confirmed).

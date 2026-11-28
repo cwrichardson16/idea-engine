@@ -93,3 +93,21 @@ Steps 1, 3, 4, 6 and 9 serve the question directly (a reason to return, the stud
 - Not checked: iOS Safari or Android WebGPU support, Supabase free-plan backups, the add-on install on real Anki versions. No builds run, nothing edited except this file.
 
 VERDICT: BLOCK. Five confirmed gaps (B1-B5). All are small, about 2.5-3 extra agent-days in total, and fixable inside the plan, but without them the playtest can't answer whether students study more and keep coming back.
+
+## Round 3 (re-review of ROADMAP.md v2 and GOAL-LOOP.md v2)
+
+All five blockers are fixed in the plan:
+- B1: `visits` and `playtest_daily` are in step 4, proven on seeded data, and are finish-line item 5.
+- B2: the same-filter test and `raw_daily` make the comparison raw against raw.
+- B3: every step now has a fixed, objective done-check, and the loop may never weaken one.
+- B4: step 11 covers the survey, erase, restore cleanup, the wipe script and the roster.
+- B5: real phones are checked in steps 2 and 9, and the iPhone fallback decision is Conner's.
+
+The should-fix items are taken too: the chest retune, add-on packaging and a real Anki review, Phase P, the screener, exact success lines, the overrun rule and the art screenshot set.
+
+Notes, none blocking:
+1. CONFIRMED: `get_state()` takes no arguments (001_init.sql:94). The server can't compute the "4 am local Anki day" for `visits` unless the client sends its UTC offset or day. Pass it to `get_state`/`put_save`. Key `raw_daily` by each review's own Anki day (phone reviews arrive late), not by the day it was posted.
+2. Define "baseline median" as the median over all 30 days, counting zero days.
+3. CONFIRMED: the engine's starter scene draws 16 fps on a Pixel 5 at High (exact game/README.md:366). Step 2's ≥ 20 fps bar may fail on a mid Android phone. Plan to lower the GPU tier before treating that as a fail. UNVERIFIED: that a dev fps overlay exists. And `pg_dump` needs the database password (Conner item).
+
+VERDICT (round 3): SHIP.
