@@ -312,7 +312,14 @@ pub struct Town {
     pub queue: Vec<Troop>,
     /// When the first troop in the queue started training; 0 when the queue is empty.
     pub queue_start: u64,
+    /// Best stars (0 to 3) won at each campaign camp.
+    pub stars: Vec<u8>,
+    /// Per campaign camp, a bitmask of its buildings already looted.
+    pub looted: Vec<u32>,
 }
+
+/// How many campaign camps there are (battle::CAMPS).
+pub const CAMP_COUNT: usize = 4;
 
 /// How a timer gets skipped.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -343,7 +350,22 @@ impl Town {
             army: vec![0; TROOPS.len()],
             queue: Vec::new(),
             queue_start: 0,
+            stars: vec![0; CAMP_COUNT],
+            looted: vec![0; CAMP_COUNT],
         }
+    }
+
+    /// The end of a raid on campaign camp `camp`: keep the best stars, mark
+    /// what was looted, and credit the loot up to the storage caps (what
+    /// doesn't fit is lost). Returns the (gold, elixir) actually kept.
+    pub fn record_raid(&mut self, camp: usize, stars: u8, looted_now: u32, gold: u32, elixir: u32) -> (u32, u32) {
+        if let Some(best) = self.stars.get_mut(camp) {
+            *best = (*best).max(stars.min(3));
+        }
+        if let Some(mask) = self.looted.get_mut(camp) {
+            *mask |= looted_now;
+        }
+        (self.earn(Res::Gold, gold), self.earn(Res::Elixir, elixir))
     }
 
     /// The highest finished barracks level (0 without one).
@@ -733,6 +755,10 @@ impl Town {
         let army: Vec<String> = self.army.iter().map(|n| n.to_string()).collect();
         let queue: Vec<String> = self.queue.iter().map(|t| t.index().to_string()).collect();
         out += &format!("#{},{}#{}", army.join(","), self.queue_start, queue.join(","));
+        // Since the campaign: "#best stars per camp#looted masks per camp".
+        let stars: Vec<String> = self.stars.iter().map(|n| n.to_string()).collect();
+        let looted: Vec<String> = self.looted.iter().map(|n| n.to_string()).collect();
+        out += &format!("#{}#{}", stars.join(","), looted.join(","));
         out
     }
 
@@ -741,9 +767,22 @@ impl Town {
         // A v1 village has no army part.
         let mut sections = text.split('#');
         let text = sections.next()?;
-        let (army, queue_start, queue) = match (sections.next(), sections.next(), sections.next()) {
-            (None, None, None) => (vec![0; TROOPS.len()], 0, Vec::new()),
-            (Some(a), Some(q), None) => {
+        let (a, q, st, lo) = (sections.next(), sections.next(), sections.next(), sections.next());
+        if sections.next().is_some() {
+            return None;
+        }
+        // An army-era village has no campaign part.
+        let (stars, looted) = match (st, lo) {
+            (None, None) => (vec![0; CAMP_COUNT], vec![0; CAMP_COUNT]),
+            (Some(st), Some(lo)) => (
+                st.split(',').map(|n| n.parse().ok()).collect::<Option<Vec<u8>>>()?,
+                lo.split(',').map(|n| n.parse().ok()).collect::<Option<Vec<u32>>>()?,
+            ),
+            _ => return None,
+        };
+        let (army, queue_start, queue) = match (a, q) {
+            (None, None) => (vec![0; TROOPS.len()], 0, Vec::new()),
+            (Some(a), Some(q)) => {
                 let nums: Vec<u64> = a.split(',').map(|n| n.parse().ok()).collect::<Option<_>>()?;
                 let (start, counts) = nums.split_last()?;
                 if counts.len() != TROOPS.len() {
@@ -798,6 +837,8 @@ impl Town {
             army,
             queue,
             queue_start,
+            stars,
+            looted,
         };
         town.valid().then_some(town)
     }
@@ -838,6 +879,9 @@ impl Town {
             && banked_ok
             && self.builders_busy() <= self.builders()
             && self.army.len() == TROOPS.len()
+            && self.stars.len() == CAMP_COUNT
+            && self.stars.iter().all(|&s| s <= 3)
+            && self.looted.len() == CAMP_COUNT
             && self.queue.len() <= QUEUE_MAX
             && self.housing_used() <= self.housing_cap()
             && self.next_id < u32::MAX

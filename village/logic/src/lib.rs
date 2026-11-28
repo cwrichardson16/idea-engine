@@ -24,7 +24,7 @@ pub struct Options {
 pub struct SaveContract {
     pub version: u32,
 }
-pub const SAVE_CONTRACT: u32 = 2;
+pub const SAVE_CONTRACT: u32 = 3;
 
 /// Village time: world time plus every span spent away.
 #[derive(Default, Resource)]

@@ -431,4 +431,4 @@ pub fn plans_from_town(town: &Town) -> Vec<Plan> {
 }
 
 /// Sanity: the battle knows every troop kind the army has.
-const _: () = assert!(TROOPS.len() == 3);
+const _: () = assert!(TROOPS.len() == 3 && CAMPS.len() == crate::economy::CAMP_COUNT);

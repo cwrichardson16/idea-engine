@@ -143,3 +143,31 @@ fn a_player_village_becomes_a_raidable_layout() {
     let b = Battle::on(&layout, vec![1, 0, 0], 0);
     assert_eq!(b.targets.len(), layout.len());
 }
+
+#[test]
+fn raids_keep_best_stars_mark_loot_and_cap_it_by_storage() {
+    let mut t = Town::new();
+    t.gold = 900; // the starting cap is 1000
+    let kept = t.record_raid(1, 2, 0b101, 500, 50);
+    assert_eq!(kept, (100, 50), "only what fits is kept");
+    assert_eq!((t.gold, t.stars[1], t.looted[1]), (1000, 2, 0b101));
+    t.record_raid(1, 1, 0b010, 0, 0);
+    assert_eq!((t.stars[1], t.looted[1]), (2, 0b111), "best stars stay, masks add up");
+}
+
+#[test]
+fn the_campaign_round_trips_and_an_army_era_save_still_loads() {
+    let mut t = Town::new();
+    t.record_raid(0, 3, 0b11111, 0, 0);
+    let back = Town::decode(&t.encode()).unwrap();
+    assert_eq!(back, t);
+    // A save from before the campaign existed (army sections only).
+    let army_era = "500,500,50,0,2;1,0,1,13,13,0,0,0,0#0,0,0,0#";
+    let old = Town::decode(army_era).unwrap();
+    assert_eq!((old.stars, old.looted), (vec![0; CAMP_COUNT], vec![0; CAMP_COUNT]));
+    // Too many stars or a missing campaign part is refused.
+    let mut bad = t.encode();
+    bad = bad.replacen("#3,0,0,0#", "#4,0,0,0#", 1);
+    assert!(Town::decode(&bad).is_none());
+    assert!(Town::decode(&format!("{}#1", t.encode())).is_none());
+}
