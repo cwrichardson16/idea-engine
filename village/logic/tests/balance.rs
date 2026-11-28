@@ -219,11 +219,11 @@ struct Log {
 }
 
 /// One week of the fixed strategy. The player starts day 1 at 08:00 and
-/// touches the game at 08:00, 12:00, 13:00, 16:00 and 20:00: every touch
-/// collects everything (so at least every 4 h while awake) and starts the
-/// cheapest thing affordable until nothing is (staying up to 10 minutes while
-/// jobs finish and free a mason); the three sessions (08:00,
-/// 13:00, 20:00) also raid a campaign camp with a full army and train the next.
+/// plays 3 sessions a day at 08:00, 13:00 and 20:00, and also collects at
+/// 12:00 and 16:00 (so at least every 4 h while awake; those touches only
+/// collect). A session collects, raids a campaign camp with a full army,
+/// trains the next, and starts the cheapest thing affordable until nothing is
+/// (staying up to 10 minutes while jobs finish and free a mason).
 /// With study, 30 credited minutes land at 20:00 and Knowledge finishes timers.
 fn week(study: bool) -> (Town, Log) {
     let mut t = Town::new();
@@ -249,7 +249,11 @@ fn week(study: bool) -> (Town, Log) {
             if cheapest(&t).is_some() {
                 progress.push(now);
             }
-            // A touch lasts up to 10 minutes: jobs that finish meanwhile free a
+            // 12:00 and 16:00 only collect.
+            if !session {
+                continue;
+            }
+            // A session lasts up to 10 minutes: jobs that finish meanwhile free a
             // mason for the next cheapest thing.
             let mut at = now;
             loop {
