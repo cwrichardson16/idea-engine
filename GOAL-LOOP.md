@@ -1,22 +1,31 @@
-# Goal + loop for the build (draft for pressure test)
+# Goal + loop for the build (v2, 2026-11-28, takes review round 2)
 
 ## Goal (one line)
-Ten testers, given a private link, play Stonehaven — a robust, good-looking Clash-like base builder where real Anki reviews boost them — for 7+ days with no help, and nothing breaks, cheats cheaply or loses progress.
+Ten testers, given a private link, play Stonehaven (a robust, good-looking Clash-like base builder where real Anki reviews boost them) for 7+ days with no help, nothing breaks, cheats cheaply or loses progress, and Conner can see daily return, raw reviews vs each tester's baseline, and survey answers.
 
-## Finish line (all must be true, each with evidence in STATE.md)
-1. ROADMAP.md steps 1–9 and 11 done (10 walls is stretch); each step's own checks below pass.
-2. Checks: `bun exact.mjs test-rust` green, `contract build --json` = [], `bun exact.mjs test web` green (page tests cover tutorial, a study reward, a raid result, PvP raid, hidden dev buttons, Link Anki).
-3. Deployed private link in Chrome at desktop and 390×844: fresh profile does the tutorial; raids a camp; raids test player B; B sees "you were raided" + shield + loot loss once; reload keeps everything; restore code works in a 2nd profile; art loads under a size budget (first play < 10 s on a normal connection).
-4. Anki: a script that posts exactly like the add-on proves counted reviews give Knowledge by the rule and every ANTICHEAT.md cheat case is refused; the add-on runs in a real local Anki (or the owner installs it once).
-5. Supabase: advisors clean; SQL as user B can't read/write A's save, events, pairing, raids; loot moves only via the raid RPC; each raid applied once.
-6. Balance: a sim test of a 7-day progression (with and without study) shows no dead ends, no 1-day max-out, raids not trivially 3-star at equal level.
-7. Reviews: skeptic + verifier SHIP on the deployed flow.
-8. Owner gives the final go before the link is shared (never shared by the agent).
+## Finish line for the build (all true, each with evidence in STATE.md)
+1. ROADMAP.md steps 1–9 and 11 done (10 walls is stretch), each passing its written done-check in ROADMAP.md. Checks were fixed before the loop started; none weakened without telling Conner.
+2. Checks: `bun exact.mjs test-rust` green, `contract build --json` = [], `bun exact.mjs test web` green (page tests cover tutorial, a study reward, "counted X of Y", a raid result, PvP raid, hidden dev buttons, Link Anki, survey, erase).
+3. Deployed private link (release build):
+   - Chrome at desktop and 390×844: fresh profile does the tutorial; raids a camp; raids test player B; B sees "you were raided" + shield + loot loss once within 90 s without reload; reload keeps everything; restore code works in a 2nd profile.
+   - Real phones: Conner runs the tutorial, a raid and a reload on his iPhone (Safari) and one Android phone (Chrome). Device + OS recorded. If the iPhone can't run it, Conner has decided what to do (ROADMAP step 2).
+   - Load: ≤ 10 s from navigation to a tappable village, Chrome cold cache, "Fast 4G" + 4× CPU; ASSETS ≤ 2 MB gzip.
+4. Anki: the add-on-identical script proves counted reviews give Knowledge by the rule and every ANTICHEAT.md cheat case gets its stated outcome; a real review in desktop Anki becomes Knowledge on the deployed link (screenshot + SQL); same-filter test green (baseline and live raw counts use one function).
+5. Measurement: `playtest_daily` proven on seeded data (3 players × 7 days, matches the fixture), seed deleted; raw daily counts stored for every post.
+6. Supabase: advisors clean; SQL as user B can't read/write A's save, events, pairing, raids; loot moves only via the raid RPC; each raid applied once; erase leaves 0 rows for the player; the wipe script leaves only Conner's accounts.
+7. Save safety: `old_saves_decode`, `decode_clamps_not_refuses`, `failed_load_never_uploads` green.
+8. Balance: `seven_day_sim` passes its numeric bars (ROADMAP step 1); `small_pool_has_targets` passes.
+9. Art: the 12-shot set passes the fresh reviewer and has Conner's thumbs-up.
+10. Reviews: skeptic + verifier SHIP on the deployed flow.
+11. Ship kit ready: guide, invite text, screener, survey; Conner has his tester list.
+12. Owner gives the final go before the link is shared (never shared by the agent). Then ROADMAP Phase P runs.
 
 ## Loop (how the build runs unattended)
-- One feature per iteration, in ROADMAP.md order. Per feature: write the step's done-check first → build (I am the only writer; helpers read/review only) → test-rust + contract + targeted page test → Chrome look and/or DB query → skeptic (and verifier for UI/flows) → fix confirmed issues (max 3 review rounds, then stop and report) → commit + push branch → update STATE.md (evidence pointers) → next.
+- One step per iteration, in ROADMAP.md order. Per step: read its done-check in ROADMAP.md (add checks if useful, never weaken) → build (I am the only writer; helpers read/review only) → test-rust + contract + targeted page test → Chrome look and/or DB query → skeptic (and verifier for UI/flows) → fix confirmed issues (max 3 review rounds, then stop and report) → commit + push branch → update STATE.md (evidence pointers) → next.
+- Overrun: at 1.5× a step's estimate, stop and report to Conner with "cut / continue / trim".
+- Any change to a number that save decode reads follows the SAVE_CONTRACT rule (ROADMAP step 1).
 - Heavy jobs one at a time (test web, web-build, cold builds); dev server stopped during test web.
 - Context: at the kit's warnings write STATE.md + stamped HANDOFF.md; auto-compaction + the session hook resume from them.
-- Stop and ask the owner only for: anything public, money, production, a design choice that changes the game's feel (e.g. cutting a roadmap step), or after 2 failed fixes of the same problem.
+- Stop and ask the owner only for: anything public, money, production (including any redeploy once testers have the link), a design choice that changes the game's feel (e.g. cutting a step or vetoing the chest retune), a failed iPhone check, after 2 failed fixes of the same problem, and these known owner items (ask up front, in one message): open the step-2 spike on iPhone + Android; install desktop Anki on this Mac and do one real review; install Blender or skip it; recruit the 10 testers.
 - Pacing: run with `/loop` (self-paced) using the prompt "Continue the Stonehaven build: read STATE.md and HANDOFF.md, do the next ROADMAP.md step per GOAL-LOOP.md, stop at the owner-only items."; the wakeup is a long fallback (20–30 min) since tool completions re-invoke me.
-- Daily report to the owner in plain English: done (with evidence), next, blocked on him.
+- Daily report to the owner in plain English: done (with evidence), next, blocked on him. During Phase P the daily report is the metrics report.

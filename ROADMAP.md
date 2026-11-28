@@ -1,27 +1,126 @@
-# Roadmap: good art + testers playing a robust Clash-like game (agreed 2026-11-28)
+# Roadmap: good art + testers playing a robust Clash-like game (v2, 2026-11-28)
 
-Merged from ROADMAP-DRAFT.md + ROADMAP-REVIEW-GAMEPLAY.md + ROADMAP-REVIEW-ART.md. $0 budget. Link never shared until Conner's final go.
+v1 merged ROADMAP-DRAFT.md + the gameplay and art reviews. v2 takes every finding (blocking and should-fix) from ROADMAP-REVIEW-2-PRODUCT.md and ROADMAP-REVIEW-2-TECH.md. $0 budget. The link is never shared until Conner's final go.
+
+The playtest must answer Conner's question: do students study more and keep coming back? So measurement, the survey, erase and data wipe are built before anyone plays, not after.
+
+## Steps
 
 | # | Step | Why | Agent-days |
 |---|---|---|---|
-| 1 | Economy + combat fixes: mines hold hours not minutes, building HP scales with level, troop levels, splash-free defenses retuned, camps scale and refill daily | Today the loop runs dry after session 1 and raids are easy 3-stars | 1.5 |
-| 2 | Art spike: Keep, Mint, one animated troop (KayKit), one defense through the real web build; size + load check | Find engine/art problems early, not last | 1 |
-| 3 | Readable battles: HP bars, visible shots, hit/death animations | Clash players need to see what's happening | 1 |
-| 4 | Anki link per ANTICHEAT.md (timeboxed) | The hook testers sign up for | 4 |
+| 1 | Economy + combat fixes (mines hold hours, building HP by level, troop levels, defenses retuned, camps scale and refill daily) + save safety + the balance sim with a fixed player strategy | Loop runs dry after session 1; raids are easy 3-stars; a retune today can wipe a village | 2–2.5 |
+| 2 | Art spike: Keep, Mint, one animated KayKit troop, one defense through the release web build; size + load test; Conner opens it on his iPhone and one Android phone | Find engine, art and phone problems first | 1–1.5 |
+| 3 | Readable battles: HP bars + visible shots only (hit/death animations move to step 8) | Players need to see what's happening; animations need the step-8 troops | 0.5 |
+| 4 | Anki link per ANTICHEAT.md + measurement (visits, raw daily counts, playtest_daily view) + add-on packaging/install + periodic re-fetch + chest retune + "counted X of Y" | The hook testers sign up for, and the numbers that answer the question | 5.5 |
 | 5 | Move buildings | Basic base-building expectation | 0.5–1 |
-| 6 | Lean async PvP: raid other players' saved bases, 10% loot, 8 h shield, revenge, defense log, trophy number + top-10 list; refilling computer camps stay as the main raid supply | The Clash core | 3–4 |
+| 6 | Lean async PvP with its server work (raids table, trophies, opponent list + top-10 RPCs, skip abandoned accounts, game handles 'raid' events), 10% loot, 8 h shield, revenge, defense log; camps stay the main raid supply | The Clash core | 4–5 |
 | 7 | Trebuchet (splash defense) | Defense variety | 0.5 |
-| 8 | Full art pass with ONE free CC0 artist set (KayKit): buildings with tiers built from kit parts, troops trimmed to ~5 animations, team colours, icons rendered from our own models, Kenney CC0 sounds/particles | Coherent look, $0 | 6–7 |
+| 8 | Full art pass with ONE CC0 set (KayKit): tiered buildings from kit parts, ~5 animations per troop incl. hit/death, team colours, icons rendered from our models, Kenney CC0 sounds/particles | Coherent look, $0 | 6.5–7.5 |
 | 9 | Tutorial + phone layout | Testers play with no help, on phones | 1.5–2 |
 | 10 | Walls (stretch) + Ram if walls ship | Classic Clash, but costly | 2–3 |
-| 11 | Private link + tester guide + survey; verifier on the live link | Then Conner's final go | 1 |
+| 11 | Ship kit: exit survey, "erase my data", pre-launch wipe script, tester roster, tester guide + invite + screener, verifier on the live link | Clean data, testers' rights; then Conner's final go | 2.5 |
+| P | Run the playtest (7–8 calendar days, see below) | The goal can only be checked while testers play | ~0.5/day |
 
-Total ≈ 22–27 agent-days.
+Total build ≈ 25–29 agent-days (27–32 with walls), plus cold-build wall time (25–46 min each), plus the 7–8 day playtest run.
 
-Cut for the 10-person test: leagues and trophy matchmaking, obstacles, streak-earned 3rd builder, visual replays, clans, spells.
+Overrun rule: when a step reaches 1.5× its estimate, stop and report to Conner with "cut / continue / trim".
 
-Accepted limits: the free style is chunky faceted low-poly (closest free match to "vinyl toy"); the Lancer may become a foot Knight (no free mounted model); no push notifications on web.
+## Done-checks (fixed now; the builder may add checks but never weaken one without telling Conner)
 
-Top playtest risks and checks: empty raid list (camps as main supply + shields short in a small pool); week-1 balance (a tuning table we can change without a release); Anki friction (phone reviews count after a desktop sync; guide says so).
+Every step also needs: `bun exact.mjs test-rust` green, `contract build --json` = [], skeptic review with no confirmed issue left, commit + push to the branch, evidence pointer in STATE.md.
 
-Reviewer disagreement resolved: gameplay review timeboxed art at 3–4 days, art review estimated 9–10. Pick: 1-day spike early (step 2) + 6–7 days later, trimming troop animations and building tiers to fit.
+**Step 1: economy, combat, save safety, balance sim**
+- Save safety (tests in test-rust):
+  - `old_saves_decode`: frozen save strings from every past format (v1, army, campaign, study, current v4, and every new format added later) all decode; building count and x/z positions match the frozen expectation.
+  - `decode_clamps_not_refuses`: a save with gold over the new cap, banked amount over `holds`, a missing or extra troop entry, an extra or missing camp star, and a level over `max_level` decodes, with each value clamped and vectors padded or truncated.
+  - `failed_load_never_uploads`: a corrupt save string leaves the stored text untouched, shows an error, and no `put_save` is queued (dirty stays false for 10 simulated minutes).
+- SAVE_CONTRACT rule (written into village/CLAUDE.md in this step): any change to a number that `valid()` or `decode` reads (caps, holds, housing, max_count, size, max_level, troop or camp count) must bump SAVE_CONTRACT, add a migration from the old version, and add the old format's frozen string to `old_saves_decode` before it ships. This applies during the test week too.
+- Economy numbers (tests): every mine and collector holds between 2 h and 12 h of production at every level; `building_hp(kind, level)` at level 8 is at least 3× level 1; camps refill once per Anki day (4 am rollover test).
+- Balance sim (test `seven_day_sim`), fixed strategy: the builder upgrades the cheapest eligible building, collects every 4 h, plays 3 sessions a day at 8 am / 1 pm / 8 pm; run with 0 and with 100 reviews a day. The attacker trains a full army and drops it in 3 equal groups on the side nearest the Keep. Pass bars:
+  - Keep level: day 1 = 2–3, day 3 = 3–5, day 7 = 5–7; never max (8) by day 7.
+  - With 100 reviews a day, at least 15% more total upgrade levels by day 7 than without.
+  - No dead end: in every 24 h window there is an upgrade the player can afford or one finishing.
+  - Level-matched raids (50 seeded fights per day-7 base): average stars between 1.0 and 2.0, 3-star rate ≤ 20%.
+- Chrome: a save made before step 1 loads after it with the same buildings (screenshot).
+
+**Step 2: art spike + real phones**
+- `bun exact.mjs web-build --release` (production trust) succeeds.
+- Test `asset_budget`: baked ASSETS ≤ 2 MB gzip total; animated troop clips stripped to ≤ 5.
+- Load time ("first play"): release build on a static server, Chrome with cache disabled (cold cache), DevTools network "Fast 4G" and 4× CPU throttling, fresh profile. Measured from navigation to the village visible and a tap selecting the Keep: ≤ 10 s. Record the number.
+- Chrome screenshot: Keep, Mint, the animated troop walking, one defense, all rendered.
+- Real phones (Conner, about 5 min): opens the spike link on his iPhone in Safari and on one Android phone in Chrome. Reports for each: renders yes/no, fps (dev overlay), seconds to the village, OS version. Pass = renders on both, ≥ 20 fps, ≤ 15 s on his phone network.
+- If the iPhone fails: the engine has no WebGL fallback and we don't build one. Stop and Conner decides: (a) Android/desktop-only testers, screener says so; (b) ask the Exact engine owner for a fallback and wait; (c) another route he picks.
+
+**Step 3: readable battles**
+- Test: for a fixed battle seed, stars, % and loot are identical before and after this step (damage timing stays in battle.rs).
+- Page test: during a battle, every damaged troop and building shows an HP bar whose fill equals its battle.rs HP fraction (±5%); each ranged attack spawns a visible shot.
+- Chrome screenshot at 390×844 mid-battle: at least 1 HP bar and 1 shot visible.
+
+**Step 4: Anki link + measurement**
+- A script posting exactly like the add-on, against the deployed function: 100 counted interval-growing reviews give exactly 20 Knowledge (1 per 5); every case in ANTICHEAT.md's cheat table has a script case with the outcome the table states (refused, capped or flagged).
+- Same-filter test: one Python function filters revlog rows for both the 30-day baseline and live posts (same review types, same 1.5 s floor, credited or not). A unit test on one fixture of revlog rows gets the same count both ways.
+- Server stores raw filtered daily counts (`raw_daily(player_id, day, raw)`) for every post, credited or not, next to credited events.
+- `visits(player_id, day)` table, upserted once per Anki day (4 am local) on `get_state`/`put_save`. `playtest_daily` view: per player per day, visited, raw reviews, credited reviews, baseline median. Proven on seeded fake data: 3 fake players × 7 days; the view's D1/D2/D7 activity and raw-vs-baseline rows match a fixture file exactly; then the seed is deleted (query shows 0 seeded rows).
+- Chest retune (default; Conner may veto in one line): tiers 50 / 150 / 300 / 500 and ramp `400 + 50 × review_days`, so a tester doing 500+ raw reviews reaches the top chest by day 3 (after 2 review days). Test: sim player with 500 credited reviews a day gets the top tier on day 3 and every day after. ANTICHEAT.md updated to match.
+- Study panel shows "counted X of Y reviews" and the reason for the gap (page test).
+- Periodic re-fetch: every 60 s while not in a battle. Chrome: with the game open, a scripted post appears as Knowledge within 90 s with no reload.
+- Packaging: a script builds `stonehaven.ankiaddon`, served from the private link (no AnkiWeb listing without Conner's go).
+- Real Anki (Conner, once): installs desktop Anki on this Mac (new app, ask first) and the add-on; pairs using a code shown on a phone-sized game window; does 1 real review. Evidence: screenshot + SQL row in raw_daily and events, Knowledge up on the deployed link. If Conner has AnkiMobile/AnkiDroid: 1 phone review counts after a desktop sync. Windows install: checked only if Conner or a tester has a Windows PC; otherwise listed as untested in the guide.
+
+**Step 5: move buildings**
+- Tests: move to a free tile succeeds; to a blocked tile is refused; save round trip keeps the new x/z; a building mid-upgrade keeps its timer after a move.
+- Chrome screenshots before/after a move, and after reload.
+
+**Step 6: async PvP**
+- Migrations: `raids` table, `players.trophies`, SECURITY DEFINER RPCs `list_opponents` (≤ 10 near level, excludes self, shielded, abandoned starter accounts and non-roster accounts once the roster exists) and `top10`; raid loot computed on the server from the save head (10% of storage, capped).
+- Rust test: data/src/lib.rs passes `raid` events (today it drops everything but `review`); applying the same raid id twice changes loot once.
+- SQL as user B: can read only display name + layout of opponents through the RPC, never A's save text, events, pairing or raids; loot changes only via the raid RPC.
+- Test `small_pool_has_targets`: 10 players all shielded, each still has ≥ 3 targets with loot (camps count).
+- Chrome, two profiles: A raids B; B sees "you were raided", an 8 h shield and the loot loss once, within 90 s without reload; revenge works; defense log lists the raid; top-10 shows both trophies.
+
+**Step 7: trebuchet**
+- Test: one shot damages ≥ 2 troops inside its splash radius and none outside; `seven_day_sim` still passes. Chrome screenshot.
+
+**Step 8: art pass**
+- Tool: glTF-Transform via node (present). Blender only if Conner installs it (owner item, ask once); icons are rendered in-engine otherwise.
+- Tests: every kind × level 1–8 resolves to a real model; baked bounds fit the tile footprint ±10%; ASSETS ≤ 2 MB gzip; each troop ≤ 5 clips incl. hit and death; hit/death are cosmetic (step 3's fixed-seed result unchanged); grep finds no Clash/Supercell names.
+- Load time re-measured the step-2 way: ≤ 10 s.
+- Fixed screenshot set (village Keep 1, village Keep 7, battle mid-fight, result screen, study panel, shop; desktop + 390×844 = 12 shots) scored by a fresh reviewer against a one-page style sheet: no shot rated "fails". Then Conner's thumbs-up on the set.
+- `CREDITS.md` lists every CC0 source.
+
+**Step 9: tutorial + phone layout**
+- Page test: a fresh profile finishes the tutorial with no dev buttons in ≤ 15 taps.
+- Page test at 390×844: no HUD element overlaps another or leaves the screen; tap targets ≥ 44 px.
+- Conner: runs the tutorial on his iPhone and the Android phone (screenshot each).
+
+**Step 10: walls (stretch)**
+- Tests: troops path around or attack walls when blocked; `seven_day_sim` still passes. Chrome screenshot.
+
+**Step 11: ship kit**
+- Exit survey panel, opens from day 7 or a guide link. 3 questions: (1) "Did you do more Anki reviews this week because of the game? less / same / more", (2) "Would you keep playing next week? yes / maybe / no", (3) "What made you open it, or stop opening it?" (free text). Page test: answers land in `survey`.
+- "Erase my data" button: deletes the player's rows in every table and the auth user. Live proof: SQL row counts for that id = 0 in all tables.
+- Restore claim deletes (or marks abandoned) the claiming device's starter account. Test + SQL.
+- Pre-launch wipe script: removes test, abandoned and starter accounts. Evidence: query shows only Conner's own accounts left.
+- `testers` roster (player_id, label T01–T10); restore claims update it; `playtest_daily` counts roster players only.
+- Tester guide: supported phones/browsers (from step 2), add-on install with screenshots, pairing from a phone, phone reviews count after desktop sync, how to erase. Invite text and screener for Conner (below).
+- Verifier on the live link runs GOAL-LOOP.md finish line 3.
+
+## Conner's jobs (owner-only)
+- Before or during step 2: open the spike on iPhone + Android (5 min). Decide if the iPhone fails.
+- Step 4: OK to install desktop Anki on this Mac, then install the add-on and do 1 real review. Optional: 1 phone Anki review.
+- Step 8: OK on Blender (or skip it); thumbs-up on the screenshot set.
+- Recruiting (during steps 9–11): send the invite to 10 testers. Screener (written by the agent in step 11): desktop Anki that syncs daily; a phone that passed step 2 (or a laptop); about 100+ reviews a day for 30 days so a baseline exists; exam dates in the test week. Set up a group chat for a daily nudge.
+- Final go before the link is shared.
+
+## Phase P: run the playtest (after Conner's go)
+- Day 0: wipe script run, roster filled, each tester paired (raw baseline present) or listed as unpaired.
+- Daily (agent): query `playtest_daily` and `bug_reports`; send Conner a plain-English report (who visited, raw reviews vs baseline, new bugs); take a `pg_dump` backup to the private scratch area (free-plan backups unverified).
+- Hotfix rule: redeploying the live link is a production deploy, so ask Conner (or use a standing OK he gives for bug fixes). Any rules/number change follows the SAVE_CONTRACT rule and passes `old_saves_decode` before redeploy.
+- Day 2: check-in with Conner: anyone not returning, anything broken, decide early.
+- Day 7: survey prompt. Day 8: final readout.
+- Success lines (exact): active on day 7 = a `visits` row on the tester's 7th Anki day, target ≥ 5 of 10; reviews = raw filtered daily count vs the same filter's baseline median, target median at or above baseline. Unpaired testers reported separately, not as zero. n = 10 with no control group: a directional signal, said so in the readout.
+
+## Cut, limits, risks
+- Cut for the test: leagues and trophy matchmaking, obstacles, streak-earned 3rd builder, visual replays, clans, spells.
+- Accepted limits: chunky faceted low-poly style; the Lancer may become a foot Knight; no push notifications on web; a numbers change needs a redeploy (Exact tables are baked), so "tuning without a release" means a quick redeploy under the hotfix rule.
+- Risks and their checks: empty raid list (`small_pool_has_targets`); week-1 balance (`seven_day_sim` bars); Anki friction (real-Anki check + guide); iPhone WebGPU (step 2 phone check, Conner's call if it fails); lost progress (save safety tests).
