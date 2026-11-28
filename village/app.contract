@@ -226,7 +226,7 @@ component Village
                 text hud.restore_code testId="restore-code" font-size=28 letter-spacing=4 text-align="center"
               text "Have a code from another device?" font-size=13
               row gap=8
-                input value=claimDraft input=editClaim submit=claimCode aria-label="Restore code" testId="claim-input" maxlength=8 flex=1 padding=8 border-radius=8
+                input value=claimDraft input=editClaim submit=claimCode aria-label="Restore code" testId="claim-input" maxlength=8 flex=1 padding=8 border-radius=8 background-color="#ffffff" color="#111111" font-size=18 letter-spacing=2
                 button press=claimCode testId="claim" disabled=(claimDraft.length != 8) padding=10 border-radius=10 background-color="#1565c0"
                   text "Restore"
               text "Restoring replaces the village on this device." font-size=12
