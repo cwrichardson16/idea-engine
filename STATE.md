@@ -7,8 +7,21 @@
 - Art:
   - ~/Downloads/kenney_castle-kit.zip (CC0, 2.2 MB, 76 GLB models).
   - The Fantasy Town and Nature kit downloads didn't land; Chrome likely blocked repeat downloads.
+- Done in Phase A so far (commit 5f9b5b9, test-rust 29/29):
+  - G1 camera: the `CamView` resource; `steer()` handles drag (>12 px) to pan and wheel to zoom, clamped; `tile_at(view, p, &CamView)`; a picking test.
+  - G2 models:
+    - village/art has 10 Kenney castle GLBs; their texture paths were rewritten by `village/tools/fix_glb_uri.py` (run it on any new Kenney GLB).
+    - village/app.json turns assets on.
+    - `MODELS`/`pieces()`/`SCENERY` in lib.rs: Town Hall = tower-square + hex roof + flag; hut = hex base + roof; trees and rocks around the edge.
+    - Tests needing a world save use `let mut sim: Sim<Village> = exact_game::sim_with_art!(Options::default()).unwrap();`. That proves the bake accepts the models.
+  - The web dev server was restarted (task bn4m8xc30, log ~/Projects/idea-engine-web.log). A cold build with assets was in progress at 5:24 PM; wait for "plan ready".
 - Next:
-  1. Phase A, step 1: copy a few castle GLBs plus License.txt into village/art/, add village/app.json with game.assets true, and check that one model renders in Chrome after one rebuild. If not, use the hand-made shapes.
+  1. Chrome: models render, drag pans, wheel zooms, a tap still selects after panning. If models don't render after this one build, fall back to shapes (SPEC-2 premortem 5).
+  2. G3/G4: append Barracks, ArmyCamp, Cannon, ArcherTower to the END of KINDS (numbers in SPEC-2). Add an Army (trained counts plus a training queue with started_at) to Town; finish training in settle/away; housing counts the queue; cancel refunds. Add dev commands `dev rich` and `dev th`. Models: cannon = siege-catapult, archer tower = hex base + ballista.
+  3. G7 save v2: freeze a literal v1 string test first, bump SAVE_CONTRACT, rewrite the "v2 refused" test (sim.rs ~416).
+  4. Rewrite app.test.contract; run `bun exact.mjs test web`.
+  5. Run the verifier on Phase A, then commit and push. Then Phase B (battle.rs).
+- Avoid editing Rust while a cold web build runs: the watcher rebuilds on each save.
 
 # Slice 1, the village (done)
 
