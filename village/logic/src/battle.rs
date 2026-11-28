@@ -94,11 +94,11 @@ pub fn building_hp(kind: Kind) -> i32 {
 
 /// A defense's (range in milli-tiles, damage per shot, ticks between shots).
 pub fn defense(kind: Kind, level: u8) -> Option<(i64, i32, u32)> {
-    let i = usize::from(level.clamp(1, 3) - 1);
+    let i = usize::from(level.clamp(1, 8) - 1);
     match kind {
         // Every 0.9 s and every 0.45 s.
-        Kind::Cannon => Some((7 * MILLI + 500, [10, 14, 18][i], 27)),
-        Kind::ArcherTower => Some((8 * MILLI + 500, [5, 7, 9][i], 14)),
+        Kind::Cannon => Some((7 * MILLI + 500, [10, 14, 18, 23, 29, 36, 44, 53][i], 27)),
+        Kind::ArcherTower => Some((8 * MILLI + 500, [5, 7, 9, 12, 15, 19, 23, 28][i], 14)),
         _ => None,
     }
 }

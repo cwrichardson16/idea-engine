@@ -7,8 +7,8 @@ use exact_game::*;
 
 /// The village is GRID × GRID tiles.
 pub const GRID: i32 = 30;
-/// The highest level of any building in this slice.
-pub const MAX_LEVEL: u8 = 3;
+/// The highest level of any building (SPEC-3 T0: depth for a multi-week playtest).
+pub const MAX_LEVEL: u8 = 8;
 
 pub const START_GOLD: u32 = 500;
 pub const START_ELIXIR: u32 = 500;
@@ -17,6 +17,10 @@ pub const START_GEMS: u32 = 50;
 pub const GEM_SECONDS: u64 = 10;
 /// Speed-ups: one Knowledge finishes this many seconds (study pays better than gems).
 pub const KNOWLEDGE_SECONDS: u64 = 20;
+
+const MINE_COST: [u32; 8] = [150, 300, 700, 1400, 3000, 6000, 12000, 24000];
+const STORE_COST: [u32; 8] = [300, 600, 1200, 3000, 8000, 20000, 50000, 100000];
+const STORE_HOLDS: [u32; 8] = [1500, 3000, 5000, 10000, 25000, 60000, 150000, 350000];
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Data)]
 pub enum Kind {
@@ -103,29 +107,29 @@ impl Kind {
     pub fn cost(self, level: u8) -> (Res, u32) {
         let i = usize::from(level.clamp(1, MAX_LEVEL) - 1);
         match self {
-            Kind::TownHall => (Res::Gold, [0, 1000, 3000][i]),
-            Kind::GoldMine => (Res::Elixir, [150, 300, 700][i]),
-            Kind::ElixirCollector => (Res::Gold, [150, 300, 700][i]),
-            Kind::GoldStorage => (Res::Elixir, [300, 600, 1200][i]),
-            Kind::ElixirStorage => (Res::Gold, [300, 600, 1200][i]),
-            Kind::BuilderHut => (Res::Gold, [500, 0, 0][i]),
-            Kind::Barracks => (Res::Elixir, [180, 550, 1400][i]),
-            Kind::ArmyCamp => (Res::Elixir, [220, 700, 1600][i]),
-            Kind::Cannon => (Res::Gold, [300, 800, 1700][i]),
-            Kind::ArcherTower => (Res::Gold, [900, 1800, 3200][i]),
+            Kind::TownHall => (Res::Gold, [0, 1000, 3000, 8000, 20000, 50000, 120000, 300000][i]),
+            Kind::GoldMine => (Res::Elixir, MINE_COST[i]),
+            Kind::ElixirCollector => (Res::Gold, MINE_COST[i]),
+            Kind::GoldStorage => (Res::Elixir, STORE_COST[i]),
+            Kind::ElixirStorage => (Res::Gold, STORE_COST[i]),
+            Kind::BuilderHut => (Res::Gold, if i == 0 { 500 } else { 0 }),
+            Kind::Barracks => (Res::Elixir, [180, 550, 1400, 3000, 7000, 15000, 30000, 60000][i]),
+            Kind::ArmyCamp => (Res::Elixir, [220, 700, 1600, 3500, 8000, 17000, 34000, 70000][i]),
+            Kind::Cannon => (Res::Gold, [300, 800, 1700, 4000, 9000, 20000, 45000, 90000][i]),
+            Kind::ArcherTower => (Res::Gold, [900, 1800, 3200, 7000, 15000, 32000, 65000, 120000][i]),
         }
     }
     /// Seconds a builder spends reaching `level`. Zero is instant and needs no builder.
     pub fn build_secs(self, level: u8) -> u64 {
         let i = usize::from(level.clamp(1, MAX_LEVEL) - 1);
         match self {
-            Kind::TownHall => [0, 60, 120][i],
-            Kind::GoldMine | Kind::ElixirCollector => [10, 30, 60][i],
-            Kind::GoldStorage | Kind::ElixirStorage => [15, 40, 80][i],
+            Kind::TownHall => [0, 60, 600, 1800, 3600, 7200, 14400, 28800][i],
+            Kind::GoldMine | Kind::ElixirCollector => [10, 30, 60, 300, 900, 1800, 3600, 7200][i],
+            Kind::GoldStorage | Kind::ElixirStorage => [15, 40, 80, 600, 1800, 3600, 7200, 14400][i],
             Kind::BuilderHut => 0,
-            Kind::Barracks | Kind::ArmyCamp => [25, 70, 140][i],
-            Kind::Cannon => [20, 50, 100][i],
-            Kind::ArcherTower => [50, 110, 200][i],
+            Kind::Barracks | Kind::ArmyCamp => [25, 70, 140, 900, 2700, 5400, 10800, 21600][i],
+            Kind::Cannon => [20, 50, 100, 900, 2700, 5400, 10800, 21600][i],
+            Kind::ArcherTower => [50, 110, 200, 1200, 3600, 7200, 14400, 28800][i],
         }
     }
     /// What a mine or collector makes: (resource, per second, holds).
@@ -134,8 +138,8 @@ impl Kind {
             return None;
         }
         let i = usize::from(level.min(MAX_LEVEL) - 1);
-        let rate = [2, 3, 4][i];
-        let holds = [100, 200, 300][i];
+        let rate = [2, 3, 4, 6, 8, 11, 15, 20][i];
+        let holds = [100, 200, 300, 600, 1200, 2400, 4000, 6000][i];
         match self {
             Kind::GoldMine => Some((Res::Gold, rate, holds)),
             Kind::ElixirCollector => Some((Res::Elixir, rate, holds)),
@@ -150,11 +154,11 @@ impl Kind {
         let i = usize::from(level.min(MAX_LEVEL) - 1);
         match self {
             Kind::TownHall => {
-                let n = [1000, 2000, 3000][i];
+                let n = [1000, 2000, 3000, 5000, 10000, 20000, 40000, 80000][i];
                 (n, n)
             }
-            Kind::GoldStorage => ([1500, 3000, 5000][i], 0),
-            Kind::ElixirStorage => (0, [1500, 3000, 5000][i]),
+            Kind::GoldStorage => (STORE_HOLDS[i], 0),
+            Kind::ElixirStorage => (0, STORE_HOLDS[i]),
             _ => (0, 0),
         }
     }
@@ -163,12 +167,12 @@ impl Kind {
         let i = usize::from(th.clamp(1, MAX_LEVEL) - 1);
         match self {
             Kind::TownHall => 1,
-            Kind::GoldMine | Kind::ElixirCollector => [1, 2, 3][i],
-            Kind::GoldStorage | Kind::ElixirStorage => [1, 1, 2][i],
+            Kind::GoldMine | Kind::ElixirCollector => [1, 2, 3, 4, 5, 6, 6, 7][i],
+            Kind::GoldStorage | Kind::ElixirStorage => [1, 1, 2, 2, 3, 3, 4, 4][i],
             Kind::BuilderHut | Kind::Barracks => 1,
-            Kind::ArmyCamp => [1, 1, 2][i],
-            Kind::Cannon => [2, 2, 3][i],
-            Kind::ArcherTower => [0, 1, 2][i],
+            Kind::ArmyCamp => [1, 1, 2, 2, 3, 3, 4, 4][i],
+            Kind::Cannon => [2, 2, 3, 3, 4, 4, 5, 5][i],
+            Kind::ArcherTower => [0, 1, 2, 2, 3, 3, 4, 4][i],
         }
     }
     /// The Town Hall level that first allows one.
@@ -178,7 +182,7 @@ impl Kind {
     /// Army camp space at a level.
     pub fn housing(self, level: u8) -> u32 {
         match (self, level) {
-            (Kind::ArmyCamp, 1..) => [24, 36, 48][usize::from(level.min(MAX_LEVEL) - 1)],
+            (Kind::ArmyCamp, 1..) => [24, 36, 48, 60, 72, 84, 100, 120][usize::from(level.min(MAX_LEVEL) - 1)],
             _ => 0,
         }
     }

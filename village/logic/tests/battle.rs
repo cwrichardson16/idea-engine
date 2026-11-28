@@ -171,3 +171,29 @@ fn the_campaign_round_trips_and_an_army_era_save_still_loads() {
     assert!(Town::decode(&bad).is_none());
     assert!(Town::decode(&format!("{}#1", t.encode())).is_none());
 }
+
+/// SPEC-3 T0: every level is affordable within the storage you can have when it unlocks,
+/// and maxing the village is weeks of builder time, not an afternoon.
+#[test]
+fn eight_levels_are_affordable_and_take_weeks() {
+    use village_logic::economy::*;
+    let cap = |th: u8| -> u32 {
+        let (g, _) = Kind::TownHall.holds(th);
+        g + Kind::GoldStorage.max_count(th) as u32 * Kind::GoldStorage.holds(th).0
+    };
+    for k in KINDS {
+        for level in 1..=k.max_level() {
+            let (_, cost) = k.cost(level);
+            // Non-Town-Hall level L needs Town Hall L; the Town Hall's own level L is bought at L-1.
+            let th = if k == Kind::TownHall { level.saturating_sub(1).max(1) } else { level };
+            assert!(cost <= cap(th), "{k:?} level {level} costs {cost}, cap at TH{th} is {}", cap(th));
+        }
+    }
+    let mut secs: u64 = 0;
+    for k in KINDS {
+        let n = k.max_count(MAX_LEVEL) as u64;
+        secs += n * (1..=k.max_level()).map(|l| k.build_secs(l)).sum::<u64>();
+    }
+    let builder_days = secs as f64 / 2.0 / 86400.0;
+    assert!((5.0..30.0).contains(&builder_days), "{builder_days:.1} days with 2 builders");
+}

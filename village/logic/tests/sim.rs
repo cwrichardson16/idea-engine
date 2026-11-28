@@ -203,14 +203,15 @@ fn max_level_stops_upgrades() {
     t.elixir = 100_000;
     let th = t.buildings[0].id;
     let mut now = 0;
-    for _ in 0..2 {
+    t.gold = 1_000_000;
+    for _ in 0..7 {
         t.upgrade(th, now).unwrap();
-        now += 200 * S;
+        now += 30_000 * S;
         t.settle(now);
         // Storage caps stop gold from going above the cap; refill for the test.
-        t.gold = 100_000;
+        t.gold = 1_000_000;
     }
-    assert_eq!(t.town_hall_level(), 3);
+    assert_eq!(t.town_hall_level(), 8);
     assert_eq!(t.can_upgrade(th).unwrap_err(), "Max level");
 }
 
@@ -432,7 +433,7 @@ fn decode_rejects_villages_play_could_not_make() {
         "500,500,50,0,3;1,0,1,13,13,0,0,0,0;2,0,1,0,0,0,0,0,0",            // two town halls
         "500,500,50,0,3;1,0,1,13,13,0,0,0,0;2,1,1,12,12,0,0,0,0",          // overlap
         "500,500,50,0,3;1,0,1,13,13,0,0,0,0;2,1,1,28,0,0,0,0,0",           // off the grid
-        "500,500,50,0,3;1,0,3,13,13,9,0,0,0",                              // busy past max level
+        "500,500,50,0,3;1,0,8,13,13,9,0,0,0",                              // busy past max level
         "500,500,50,0,4;1,0,1,13,13,0,0,0,0;2,1,0,0,0,9,0,0,0;3,2,0,5,0,9,0,0,0", // 2 busy, 1 builder
         "500,500,50,0,3;1,0,1,13,13,0,0,0,0;2,1,1,0,0,0,0,999999999,0",    // over the mine's cap
         "99999,500,50,0,2;1,0,1,13,13,0,0,0,0",                            // over storage
