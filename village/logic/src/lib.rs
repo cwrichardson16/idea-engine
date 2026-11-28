@@ -51,6 +51,32 @@ pub struct Ui {
 }
 
 /// What is drawn for each building, so it is redrawn only when it changes.
+/// Where the camera looks (pan, in tiles from the default spot) and how far
+/// back it sits (zoom: 1 is the default, smaller is closer).
+#[derive(Default, Resource)]
+pub struct CamView {
+    pub pan_x: f32,
+    pub pan_z: f32,
+    pub zoom: f32,
+}
+
+impl CamView {
+    pub fn home() -> Self {
+        CamView { pan_x: 0.0, pan_z: 0.0, zoom: 1.0 }
+    }
+}
+
+pub const PAN_LIMIT: f32 = 12.0;
+pub const ZOOM_MIN: f32 = 0.45;
+pub const ZOOM_MAX: f32 = 1.35;
+
+/// The camera's pose for a view.
+pub fn camera_pose(v: &CamView) -> Transform {
+    let look = Vec3::new(LOOK.x + v.pan_x, 0.0, LOOK.z + v.pan_z);
+    let eye = look + (EYE - LOOK) * v.zoom;
+    Transform::at(eye.x, eye.y, eye.z).looking_at(look, Vec3::Y)
+}
+
 #[derive(Clone, Default, PartialEq, Data)]
 pub struct Drawn {
     pub id: u32,
@@ -136,6 +162,7 @@ pub struct Village;
 impl Game for Village {
     const ID: &'static str = "village";
     const HZ: u32 = HZ;
+    const STREAMED: &'static [&'static str] = MODELS;
     type Args = Options;
 
     fn restorable(saved: &World) -> Result<(), String> {
@@ -175,10 +202,13 @@ impl Game for Village {
         w.spawn_named(
             "camera",
             (
-                Transform::at(EYE.x, EYE.y, EYE.z).looking_at(LOOK, Vec3::Y),
+                camera_pose(&CamView::home()),
                 Camera::default(),
             ),
         );
+        for (name, x, z, k) in SCENERY {
+            w.spawn((Transform::at(*x, 0.0, *z).with_scale(*k), Mesh::asset(*name)));
+        }
         w.spawn_named(
             "sun",
             (
@@ -189,6 +219,7 @@ impl Game for Village {
         w.insert_resource(Town::new());
         w.insert_resource(Clock::default());
         w.insert_resource(Ui::default());
+        w.insert_resource(CamView::home());
         w.insert_resource(Shown::default());
         draw(w);
     }
@@ -209,6 +240,7 @@ impl Game for Village {
                 command(w, &cmd);
             }
         }
+        steer(w, input);
         taps(w, input);
         save(w);
         if w.resource::<Town>().builders_busy() > 0 {
@@ -435,6 +467,34 @@ pub fn tap_tile(w: &mut World, x: i32, z: i32) {
     w.resource_mut::<Ui>().selected = hit;
 }
 
+/// Drag pans the camera; the wheel (or a trackpad pinch) zooms. Both stay in bounds.
+fn steer(w: &mut World, input: &Input) {
+    let view = input.viewport();
+    let wheel = input.wheel().y;
+    let pose = {
+        let mut v = w.resource_mut::<CamView>();
+        let before = (v.pan_x, v.pan_z, v.zoom);
+        for p in input.pointers() {
+            if p.down && p.press_origin.distance(p.position) > 12.0 {
+                // About one tile per 28 px at the default zoom on a 756 px tall view.
+                let k = v.zoom * 21.0 / view.y.max(1.0);
+                v.pan_x -= p.delta.x * k;
+                v.pan_z -= p.delta.y * k;
+            }
+        }
+        if wheel != 0.0 {
+            v.zoom = (v.zoom * (1.0 + wheel * 0.0015)).clamp(ZOOM_MIN, ZOOM_MAX);
+        }
+        v.pan_x = v.pan_x.clamp(-PAN_LIMIT, PAN_LIMIT);
+        v.pan_z = v.pan_z.clamp(-PAN_LIMIT, PAN_LIMIT);
+        if before == (v.pan_x, v.pan_z, v.zoom) {
+            return;
+        }
+        camera_pose(&v)
+    };
+    *w.require_mut::<Transform>("camera") = pose;
+}
+
 /// Turns pointer taps on the world into tile taps. A press that moved more
 /// than a few pixels is a drag, not a tap.
 fn taps(w: &mut World, input: &Input) {
@@ -451,18 +511,19 @@ fn taps(w: &mut World, input: &Input) {
         if origin.distance(e.position) > 12.0 {
             continue;
         }
-        if let Some((x, z)) = tile_at(view, e.position) {
+        let hit = tile_at(view, e.position, &w.resource::<CamView>());
+        if let Some((x, z)) = hit {
             tap_tile(w, x, z);
         }
     }
 }
 
 /// The grid tile under a point on the screen (CSS pixels), if any.
-pub fn tile_at(view: Vec2, p: Vec2) -> Option<(i32, i32)> {
+pub fn tile_at(view: Vec2, p: Vec2, v: &CamView) -> Option<(i32, i32)> {
     if view.x <= 0.0 || view.y <= 0.0 {
         return None;
     }
-    let cam = Transform::at(EYE.x, EYE.y, EYE.z).looking_at(LOOK, Vec3::Y);
+    let cam = camera_pose(v);
     let pose = Mat4::from_rotation_translation(cam.rotation, cam.position);
     let inverse = Camera::default().matrix(view).inverse();
     let ndc = Vec3::new(p.x / view.x * 2. - 1., 1. - p.y / view.y * 2., 0.);
@@ -490,6 +551,63 @@ fn centre(x: i32, z: i32, size: i32) -> (f32, f32) {
         z as f32 + size as f32 / 2.0 - half,
     )
 }
+
+/// Kenney Castle Kit models (CC0, see art/LICENSE-kenney-castle-kit.txt).
+pub const MODELS: &[&str] = &[
+    "tower-square.model",
+    "tower-hexagon-base.model",
+    "tower-hexagon-roof.model",
+    "siege-ballista.model",
+    "siege-catapult.model",
+    "tree-large.model",
+    "tree-small.model",
+    "rocks-large.model",
+    "rocks-small.model",
+    "flag.model",
+];
+
+/// The model pieces for a kind: (model, height of its base above the stone
+/// slab, scale). The models are about one tile wide with their origin at the
+/// bottom centre. An empty list means the kind is drawn with plain shapes.
+fn pieces(kind: Kind, level: u8) -> Vec<(&'static str, f32, f32)> {
+    let grow = 0.85 + 0.15 * f32::from(level.max(1));
+    match kind {
+        Kind::TownHall => {
+            let s = 2.7 * grow;
+            vec![
+                ("tower-square.model", 0.0, s),
+                ("tower-hexagon-roof.model", 1.31 * s, s * 1.05),
+                ("flag.model", 1.31 * s + 0.8 * s, s * 0.5),
+            ]
+        }
+        Kind::BuilderHut => vec![
+            ("tower-hexagon-base.model", 0.0, 1.3),
+            ("tower-hexagon-roof.model", 1.31 * 1.3, 1.4),
+        ],
+        _ => Vec::new(),
+    }
+}
+
+/// Trees and rocks around the edge of the village (fixed, not saved).
+pub const SCENERY: &[(&str, f32, f32, f32)] = &[
+    ("tree-large.model", -17.5, -12.0, 2.2),
+    ("tree-small.model", -18.5, -6.0, 2.0),
+    ("tree-large.model", -17.0, 3.0, 2.4),
+    ("rocks-large.model", -18.0, 9.0, 2.0),
+    ("tree-small.model", -17.5, 14.0, 2.1),
+    ("tree-large.model", 17.5, -14.0, 2.3),
+    ("rocks-small.model", 18.0, -7.0, 2.0),
+    ("tree-large.model", 17.0, 0.0, 2.2),
+    ("tree-small.model", 18.5, 6.0, 2.0),
+    ("tree-large.model", 17.5, 12.0, 2.5),
+    ("tree-small.model", -12.0, -17.5, 2.0),
+    ("tree-large.model", -4.0, -18.0, 2.3),
+    ("rocks-large.model", 4.0, -17.5, 1.8),
+    ("tree-large.model", 11.0, -18.0, 2.2),
+    ("tree-small.model", -9.0, 17.5, 2.0),
+    ("rocks-small.model", 0.0, 18.0, 1.8),
+    ("tree-large.model", 8.0, 17.5, 2.3),
+];
 
 fn colour(kind: Kind) -> &'static str {
     match kind {
@@ -521,6 +639,22 @@ fn spawn_building(w: &mut World, kind: Kind, x: i32, z: i32, level: u8, busy: bo
         Mesh::cuboid(Vec3::new(s - 0.15, 0.2, s - 0.15)),
         Material::hex(&tint("#7f7f7f")),
     )));
+    // Finished buildings with a model draw it; ghosts and first builds keep plain shapes.
+    let models = if ghost.is_none() && level > 0 { pieces(kind, level) } else { Vec::new() };
+    if !models.is_empty() {
+        for (name, y, k) in models {
+            parts.push(w.spawn((Transform::at(cx, 0.2 + y, cz).with_scale(k), Mesh::asset(name))));
+        }
+        let top = 0.2 + 2.0 * s.min(3.0);
+        if busy {
+            parts.push(w.spawn((
+                Transform::at(cx, top, cz),
+                Mesh::cuboid(Vec3::new(s - 0.2, 0.15, s - 0.2)),
+                Material::hex("#ffd54f").emissive(0.6, 0.45, 0.05),
+            )));
+        }
+        return parts;
+    }
     let h = if level == 0 { 0.35 } else { 0.5 + 0.45 * f32::from(level) };
     let body = if level == 0 { "#bdb5a6" } else { colour(kind) };
     parts.push(w.spawn((

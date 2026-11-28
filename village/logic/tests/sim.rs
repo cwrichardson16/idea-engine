@@ -258,7 +258,7 @@ fn the_world_counts_time_away() {
 
 #[test]
 fn a_save_restores_the_village() {
-    let mut sim = Sim::<Village>::new(Options::default()).unwrap();
+    let mut sim: Sim<Village> = exact_game::sim_with_art!(Options::default()).unwrap();
     sim.run(100.0);
     sim.post("buy goldmine");
     sim.run(100.0);
@@ -266,7 +266,7 @@ fn a_save_restores_the_village() {
     sim.run(500.0);
     let before = sim.world().resource::<Town>().buildings.clone();
     let save = sim.save().unwrap();
-    let mut again = Sim::<Village>::new(Options::default()).unwrap();
+    let mut again: Sim<Village> = exact_game::sim_with_art!(Options::default()).unwrap();
     again.restore(&save).unwrap();
     assert_eq!(again.world().resource::<Town>().buildings, before);
 }
@@ -317,14 +317,14 @@ fn knowledge_only_comes_from_reviews() {
 fn picking_finds_the_tile_under_the_middle_of_the_screen() {
     let view = Vec2::new(1440.0, 756.0);
     // The camera looks at LOOK, the screen's centre: x=0, z=1.5 → tile (15, 16).
-    assert_eq!(tile_at(view, view / 2.0), Some((15, 16)));
+    assert_eq!(tile_at(view, view / 2.0, &CamView::home()), Some((15, 16)));
     // Left of centre is a lower x; lower on screen is nearer the camera (higher z).
-    let (lx, _) = tile_at(view, Vec2::new(500.0, 378.0)).unwrap();
+    let (lx, _) = tile_at(view, Vec2::new(500.0, 378.0), &CamView::home()).unwrap();
     assert!(lx < 15);
-    let (_, nz) = tile_at(view, Vec2::new(720.0, 600.0)).unwrap();
+    let (_, nz) = tile_at(view, Vec2::new(720.0, 600.0), &CamView::home()).unwrap();
     assert!(nz > 16);
     // The sky is not a tile.
-    assert_eq!(tile_at(view, Vec2::new(720.0, 2.0)), None);
+    assert_eq!(tile_at(view, Vec2::new(720.0, 2.0), &CamView::home()), None);
 }
 
 #[test]
@@ -460,4 +460,19 @@ fn a_double_click_on_place_spends_no_gems() {
     let town = w.resource::<Town>();
     assert_eq!(town.gems, START_GEMS);
     assert!(town.get(2).unwrap().busy());
+}
+
+#[test]
+fn picking_follows_the_camera_when_panned_and_zoomed() {
+    let view = Vec2::new(1440.0, 756.0);
+    let home = tile_at(view, view / 2.0, &CamView::home()).unwrap();
+    let panned = CamView { pan_x: 5.0, pan_z: -3.0, zoom: 1.0 };
+    assert_eq!(tile_at(view, view / 2.0, &panned), Some((home.0 + 5, home.1 - 3)));
+    let close = CamView { pan_x: 0.0, pan_z: 0.0, zoom: ZOOM_MIN };
+    assert_eq!(tile_at(view, view / 2.0, &close), Some(home));
+    // Zoomed in, the same screen offset covers fewer tiles.
+    let off = Vec2::new(900.0, 378.0);
+    let far_x = tile_at(view, off, &CamView::home()).unwrap().0 - home.0;
+    let near_x = tile_at(view, off, &close).unwrap().0 - home.0;
+    assert!(near_x < far_x, "{near_x} < {far_x}");
 }
