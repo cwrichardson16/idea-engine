@@ -58,7 +58,9 @@ pub struct Options {
 pub struct SaveContract {
     pub version: u32,
 }
-pub const SAVE_CONTRACT: u32 = 4;
+/// The save contract (economy.rs): written into every save, and the world
+/// snapshot's version too.
+pub use economy::SAVE_CONTRACT;
 
 /// Village time: world time plus every span spent away.
 #[derive(Default, Resource)]
@@ -83,7 +85,13 @@ pub struct Ui {
     /// True once the page has sent what it kept (or that it kept nothing);
     /// saving waits for this so a fresh world never overwrites the real village.
     pub loaded: bool,
+    /// The page kept a save this build can't read. Nothing is saved or uploaded
+    /// over it (locally or to the cloud) until a readable village loads.
+    pub load_failed: bool,
 }
+
+/// What the player sees while a kept save can't be read.
+pub const LOAD_FAILED: &str = "⚠️ Your saved village couldn't be read. It is kept safe and nothing will be saved over it: reload, or send a bug report.";
 
 /// What is drawn for each building, so it is redrawn only when it changes.
 /// Where the camera looks (pan, in tiles from the default spot) and how far
@@ -377,6 +385,7 @@ impl Game for Village {
                 command(w, &cmd);
             }
         }
+        refill_camps(w);
         steer(w, input);
         taps(w, input);
         fight::step(w);
@@ -405,7 +414,11 @@ pub fn away(w: &mut World, ms: u64) {
 /// seconds. Format: `save v1|<village ms>|<town>`; the page appends
 /// `@<real wall-clock ms>` when it keeps it.
 fn save(w: &mut World) {
-    if !w.resource::<Ui>().loaded {
+    let blocked = {
+        let ui = w.resource::<Ui>();
+        !ui.loaded || ui.load_failed
+    };
+    if blocked {
         return;
     }
     let now = now_ms(w);
@@ -429,24 +442,27 @@ fn save(w: &mut World) {
 
 /// Restores what the page kept. The page sends `<real wall ms now>` and then
 /// what it kept, `v1|<village ms>|<town>@<real wall ms then>` (or nothing).
-/// The real time between the two is time away. Anything unreadable starts fresh.
-pub fn load(w: &mut World, text: &str) {
+/// The real time between the two is time away. Nothing kept starts fresh.
+/// Something kept that can't be read also plays a fresh village, but never
+/// saves or uploads over the kept text (`Ui::load_failed`); returns whether a
+/// village loaded.
+pub fn load(w: &mut World, text: &str) -> bool {
     w.resource_mut::<Ui>().loaded = true;
     let mut parts = text.splitn(2, ' ');
     let wall_now: f64 = parts.next().and_then(|n| n.parse().ok()).unwrap_or(0.0);
     let kept = parts.next().unwrap_or("").trim();
-    let Some((body, wall_then)) = kept.rsplit_once('@') else { return };
-    w.resource_mut::<cloud::Cloud>().local_wall = wall_then.parse().unwrap_or(0.0);
-    let mut f = body.splitn(3, '|');
-    // v1 saves (no army) still load; Town::decode reads both.
-    let (Some("v1" | "v2"), Some(then), Some(town)) = (f.next(), f.next(), f.next()) else {
-        return;
+    if kept.is_empty() {
+        return false;
+    }
+    let Some((then, wall_then, town)) = read_kept(kept) else {
+        w.resource_mut::<Ui>().load_failed = true;
+        // The cloud copy (if any) may be readable: take it whatever its time.
+        w.resource_mut::<cloud::Cloud>().take_cloud = true;
+        toast(w, LOAD_FAILED);
+        return false;
     };
-    let (Ok(then), Ok(wall_then), Some(town)) =
-        (then.parse::<u64>(), wall_then.parse::<f64>(), Town::decode(town))
-    else {
-        return;
-    };
+    w.resource_mut::<cloud::Cloud>().local_wall = wall_then;
+    w.resource_mut::<Ui>().load_failed = false;
     w.insert_resource(town);
     // Continue village time from where it stopped, then add the real time away.
     let tick_ms = w.tick() * 1000 / u64::from(w.hz());
@@ -458,6 +474,31 @@ pub fn load(w: &mut World, text: &str) {
     let mut ui = w.resource_mut::<Ui>();
     ui.selected = 0;
     ui.placing.clear();
+    true
+}
+
+/// A kept save `v1|<village ms>|<town>@<wall ms>` (or v2) read back: the
+/// village time, the wall time it was kept, and the village.
+pub fn read_kept(kept: &str) -> Option<(u64, f64, Town)> {
+    let (body, wall_then) = kept.rsplit_once('@')?;
+    let mut f = body.splitn(3, '|');
+    // v1 saves (no army) still load; Town::decode reads every format.
+    let (Some("v1" | "v2"), Some(then), Some(town)) = (f.next(), f.next(), f.next()) else {
+        return None;
+    };
+    Some((then.parse::<u64>().ok()?, wall_then.parse::<f64>().ok()?, Town::decode(town)?))
+}
+
+/// Camps refill once per review day (4 am local), once the real clock is known.
+fn refill_camps(w: &mut World) {
+    let wall = wall_ms(w);
+    if wall == 0 || !w.resource::<Ui>().loaded {
+        return;
+    }
+    let day = economy::review_day(wall, w.resource::<Tz>().0);
+    if w.resource::<Town>().camp_day < day {
+        w.resource_mut::<Town>().refill_camps(day);
+    }
 }
 
 /// A later session's wall clock, ahead of what this world believes, is time away.
@@ -1175,7 +1216,7 @@ pub fn hud(w: &World, now: u64, place_reason: String) -> Hud {
         gems: town.gems,
         knowledge: town.knowledge,
         ask: w.resource::<cloud::Cloud>().ask.clone(),
-        cloud: w.resource::<cloud::Cloud>().status.clone(),
+        cloud: if ui.load_failed { LOAD_FAILED.into() } else { w.resource::<cloud::Cloud>().status.clone() },
         restore_code: w.resource::<cloud::Cloud>().code.clone(),
         study_today: if town.study.day == today { town.study.reviews } else { 0 },
         study_next: economy::CHEST_TIERS

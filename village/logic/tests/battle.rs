@@ -42,16 +42,16 @@ fn a_replay_gives_no_loot_from_buildings_already_looted() {
 
 #[test]
 fn a_cannon_shoots_troops_in_range_and_ignores_them_out_of_range() {
-    let mut b = Battle::on(&[plan(Kind::Cannon, 20, 20)], vec![1, 0, 0], 0);
-    b.deploy(Troop::Fighter, 0, 0).unwrap();
-    let (full, ..) = stats(Troop::Fighter);
+    let mut b = Battle::on(&[plan(Kind::Cannon, 20, 20)], vec![0, 0, 1], 0);
+    b.deploy(Troop::Brute, 0, 0).unwrap();
+    let (full, ..) = stats(Troop::Brute);
     // Far away (over 20 tiles), it is not shot while it walks in.
     for _ in 0..60 {
         b.step();
     }
     assert_eq!(b.units[0].hp, full);
     let end = run(&mut b);
-    assert_eq!(end, End::Wiped, "one fighter loses to a cannon");
+    assert_eq!(end, End::Wiped, "one Lancer loses to a cannon");
     assert!(b.targets[0].hp < b.targets[0].max_hp, "but it got some hits in");
 }
 
@@ -165,10 +165,11 @@ fn the_campaign_round_trips_and_an_army_era_save_still_loads() {
     let army_era = "500,500,50,0,2;1,0,1,13,13,0,0,0,0#0,0,0,0#";
     let old = Town::decode(army_era).unwrap();
     assert_eq!((old.stars, old.looted), (vec![0; CAMP_COUNT], vec![0; CAMP_COUNT]));
-    // Too many stars or a missing campaign part is refused.
+    // Too many stars are clamped to 3 (step 1: clamp, never refuse); a stray
+    // extra section is not a village.
     let mut bad = t.encode();
     bad = bad.replacen("#3,0,0,0#", "#4,0,0,0#", 1);
-    assert!(Town::decode(&bad).is_none());
+    assert_eq!(Town::decode(&bad).unwrap().stars[0], 3);
     assert!(Town::decode(&format!("{}#1", t.encode())).is_none());
 }
 

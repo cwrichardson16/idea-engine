@@ -3,6 +3,8 @@ use village_logic::economy::*;
 use village_logic::*;
 
 const S: u64 = 1000;
+const MIN: u64 = 60 * S;
+const HOUR: u64 = 60 * MIN;
 
 fn town_with(gold: u32, elixir: u32) -> Town {
     let mut t = Town::new();
@@ -88,12 +90,12 @@ fn town_hall_level_caps_how_many() {
 fn mines_produce_at_their_rate_up_to_their_cap() {
     let mut t = Town::new();
     let id = t.place(Kind::GoldMine, 0, 0, 0).unwrap();
-    // Built at 10 s; makes 2 gold/s from then; holds 100.
+    // Built at 10 s; makes 250 gold an hour from then; holds 10 hours (2,500).
     t.settle(10 * S);
     assert_eq!(t.get(id).unwrap().waiting(10 * S), 0);
-    assert_eq!(t.get(id).unwrap().waiting(15 * S), 10);
-    assert_eq!(t.get(id).unwrap().waiting(15 * S + 499), 10);
-    assert_eq!(t.get(id).unwrap().waiting(10 * S + 1000 * S), 100);
+    assert_eq!(t.get(id).unwrap().waiting(10 * S + 36 * MIN), 150);
+    assert_eq!(t.get(id).unwrap().waiting(10 * S + 36 * MIN + 499), 150);
+    assert_eq!(t.get(id).unwrap().waiting(10 * S + 1000 * HOUR), 2500);
 }
 
 #[test]
@@ -101,13 +103,14 @@ fn collecting_moves_into_storage_and_overflow_stays() {
     let mut t = Town::new();
     let id = t.place(Kind::GoldMine, 0, 0, 0).unwrap();
     t.gold = 950; // cap 1000
-    let got = t.collect(id, 100 * S); // 90 s of 2/s = 180, capped at 100
+    let at = 10 * S + 12 * HOUR; // 12 h of 250/h = 3,000, held at 2,500
+    let got = t.collect(id, at);
     assert_eq!(got, 50);
     assert_eq!(t.gold, 1000);
-    assert_eq!(t.get(id).unwrap().waiting(100 * S), 50);
+    assert_eq!(t.get(id).unwrap().waiting(at), 2450);
     t.gold = 0;
-    assert_eq!(t.collect(id, 100 * S), 50);
-    assert_eq!(t.get(id).unwrap().waiting(100 * S), 0);
+    assert_eq!(t.collect(id, at), 1000);
+    assert_eq!(t.get(id).unwrap().waiting(at), 1450);
 }
 
 #[test]
@@ -118,16 +121,16 @@ fn collecting_often_loses_nothing() {
     let ib = b.place(Kind::GoldMine, 0, 0, 0).unwrap();
     a.gold = 0;
     b.gold = 0;
-    // a collects every 333 ms; b once at the end.
+    // a collects every 7.333 s for an hour; b once at the end.
     let mut t = 10 * S;
-    while t < 40 * S {
+    while t < 10 * S + HOUR {
         a.collect(ia, t);
-        t += 333;
+        t += 7_333;
     }
-    a.collect(ia, 40 * S);
-    b.collect(ib, 40 * S);
-    assert_eq!(a.gold, 60);
-    assert_eq!(b.gold, 60);
+    a.collect(ia, 10 * S + HOUR);
+    b.collect(ib, 10 * S + HOUR);
+    assert_eq!(a.gold, 250);
+    assert_eq!(b.gold, 250);
 }
 
 #[test]
@@ -177,8 +180,9 @@ fn timers_finish_at_the_right_time_and_levels_matter() {
     t.settle(100 * S);
     let b = t.get(id).unwrap();
     assert_eq!(b.level, 2);
-    // It was full (100) when the upgrade started and kept that; level 2 adds 3/s.
-    assert_eq!(b.waiting(110 * S), 130);
+    // It banked 60 s of 250/h (4.17) when the upgrade started and kept that;
+    // level 2 adds 320 an hour.
+    assert_eq!(b.waiting(100 * S + HOUR), 324);
 }
 
 #[test]
@@ -189,12 +193,13 @@ fn nothing_is_made_while_upgrading_but_banked_stays() {
     t.settle(60 * S);
     let id = t.place(Kind::GoldMine, 0, 0, 60 * S).unwrap();
     t.settle(70 * S);
-    // 20 gold made by 80 s, then upgrading for 30 s.
-    t.upgrade(id, 80 * S).unwrap();
-    assert_eq!(t.get(id).unwrap().waiting(100 * S), 20);
-    t.settle(110 * S);
-    assert_eq!(t.get(id).unwrap().waiting(110 * S), 20);
-    assert_eq!(t.get(id).unwrap().waiting(120 * S), 50);
+    // 250 gold made in its first hour, then upgrading for 30 s.
+    let up = 70 * S + HOUR;
+    t.upgrade(id, up).unwrap();
+    assert_eq!(t.get(id).unwrap().waiting(up + 20 * S), 250);
+    t.settle(up + 30 * S);
+    assert_eq!(t.get(id).unwrap().waiting(up + 30 * S), 250);
+    assert_eq!(t.get(id).unwrap().waiting(up + 30 * S + HOUR), 570);
 }
 
 #[test]
@@ -249,12 +254,12 @@ fn the_world_counts_time_away() {
     sim.run(100.0);
     let id = 2; // the first building after the Town Hall
     assert_eq!(sim.world().resource::<Town>().get(id).unwrap().level, 0);
-    sim.post("away 60");
+    sim.post("away 3600");
     sim.run(100.0);
     let w = sim.world();
     let b = w.resource::<Town>().get(id).unwrap().clone();
     assert_eq!(b.level, 1);
-    assert!(b.waiting(now_ms(w)) >= 100);
+    assert!(b.waiting(now_ms(w)) >= 240, "most of an hour at 250/h");
 }
 
 #[test]
@@ -295,7 +300,8 @@ fn gem_skip_rounds_up() {
     t.upgrade(th, 0).unwrap(); // 60 s
     assert_eq!(t.skip_cost(th, 0, Pay::Gems), Some(6));
     assert_eq!(t.skip_cost(th, 59_001, Pay::Gems), Some(1));
-    assert_eq!(t.skip_cost(th, 0, Pay::Knowledge), Some(1), "1 Knowledge = 60 s");
+    assert_eq!(t.skip_cost(th, 0, Pay::Knowledge), Some(1), "1 Knowledge = 5 minutes");
+    assert_eq!(KNOWLEDGE_SECONDS, 300);
     t.skip(th, 1000, Pay::Gems).unwrap();
     assert_eq!((t.gems, t.town_hall_level()), (44, 2));
 }
@@ -389,15 +395,15 @@ fn the_world_saves_after_loading_and_a_reload_counts_time_away() {
     let saved = sim.world().resource::<Shown>().last_save.clone();
     assert!(saved.starts_with("save v2|"), "{saved}");
     let id = 2; // the mine
-    // The page keeps it stamped with the real time; come back 10 minutes later.
+    // The page keeps it stamped with the real time; come back 11 hours later.
     let kept = format!("{}@5000000", &saved["save ".len()..]);
     let mut again = Sim::<Village>::new(Options::default()).unwrap();
-    again.post(format!("load 5600000 {kept}"));
+    again.post(format!("load {} {kept}", 5_000_000 + 11 * HOUR));
     again.run(100.0);
     let w = again.world();
     let b = w.resource::<Town>().get(id).unwrap().clone();
     assert_eq!(b.level, 1, "the 10 s build finished while away");
-    assert_eq!(b.waiting(now_ms(w)), 100, "and the mine filled up");
+    assert_eq!(b.waiting(now_ms(w)), 2500, "and the mine filled up (10 hours' worth)");
     assert_eq!(w.resource::<Town>().elixir, 350);
 }
 
@@ -431,6 +437,13 @@ fn a_reload_after_no_time_adds_nothing_and_bad_saves_start_fresh() {
         assert_eq!(s.world().resource::<Town>().buildings.len(), 1, "{bad}");
         assert!(s.world().resource::<Ui>().loaded);
     }
+    // Unreadable kept text plays fresh but never saves over it (failed_load_never_uploads).
+    for bad in ["load 9000 v1|5|garbage@1", "load 9000 v9|5|500,500,50,0,2;1,0,1,13,13,0,0,0,0@1"] {
+        let mut s = Sim::<Village>::new(Options::default()).unwrap();
+        s.post(bad);
+        s.run(12_000.0);
+        assert_eq!(s.world().resource::<Shown>().last_save, "", "{bad}");
+    }
 }
 
 #[test]
@@ -443,11 +456,11 @@ fn decode_rejects_villages_play_could_not_make() {
         "500,500,50,0,3;1,0,1,13,13,0,0,0,0;2,0,1,0,0,0,0,0,0",            // two town halls
         "500,500,50,0,3;1,0,1,13,13,0,0,0,0;2,1,1,12,12,0,0,0,0",          // overlap
         "500,500,50,0,3;1,0,1,13,13,0,0,0,0;2,1,1,28,0,0,0,0,0",           // off the grid
-        "500,500,50,0,3;1,0,8,13,13,9,0,0,0",                              // busy past max level
         "500,500,50,0,4;1,0,1,13,13,0,0,0,0;2,1,0,0,0,9,0,0,0;3,2,0,5,0,9,0,0,0", // 2 busy, 1 builder
-        "500,500,50,0,3;1,0,1,13,13,0,0,0,0;2,1,1,0,0,0,0,999999999,0",    // over the mine's cap
-        "99999,500,50,0,2;1,0,1,13,13,0,0,0,0",                            // over storage
         "500,500,50,0,3;1,0,1,13,13,0,0,0,0;2,1,1,2147483647,0,0,0,0,0",   // huge x
+        "500,500,50,0,3;1,0,1,13,13,0,0,0,0;2,99,1,0,0,0,0,0,0",           // unknown kind
+        // Over max level, over the mine's cap and over storage are clamped now:
+        // see decode_clamps_not_refuses (save.rs).
     ] {
         assert!(Town::decode(bad).is_none(), "{bad}");
     }
@@ -579,7 +592,7 @@ fn training_needs_a_barracks_costs_elixir_and_takes_time() {
     let mut t = town_with(1000, 1000);
     assert_eq!(t.can_train(Troop::Fighter), Err("Build a Barracks".into()));
     let mut t2 = army_town();
-    assert_eq!(t2.housing_cap(), 24);
+    assert_eq!(t2.housing_cap(), 20);
     t2.train(Troop::Fighter, 0).unwrap();
     t2.train(Troop::Fighter, 0).unwrap();
     assert_eq!(t2.elixir, 940);
@@ -600,22 +613,16 @@ fn training_needs_a_barracks_costs_elixir_and_takes_time() {
 #[test]
 fn housing_counts_queued_troops_and_cancelling_refunds_in_full() {
     let mut t = army_town();
-    for _ in 0..10 {
+    // The queue holds a whole army: only housing (20) limits it, and queued troops count.
+    for _ in 0..20 {
         t.train(Troop::Fighter, 0).unwrap();
     }
-    assert_eq!(t.can_train(Troop::Fighter), Err("Queue full".into()));
-    t.settle(60_000);
-    assert_eq!(t.trained(Troop::Fighter), 10);
-    for _ in 0..10 {
-        t.train(Troop::Fighter, 60_000).unwrap();
-    }
-    t.settle(200_000);
-    for _ in 0..4 {
-        t.train(Troop::Fighter, 200_000).unwrap();
-    }
-    assert_eq!(t.housing_used(), 24);
-    t.settle(400_000);
+    assert_eq!(t.housing_used(), 20);
     assert_eq!(t.can_train(Troop::Fighter), Err("Muster Ground full".into()));
+    t.settle(200_000);
+    assert_eq!(t.trained(Troop::Fighter), 20);
+    assert_eq!(t.can_train(Troop::Fighter), Err("Muster Ground full".into()));
+    assert!(QUEUE_MAX as u32 >= Kind::ArmyCamp.housing(MAX_LEVEL) * Kind::ArmyCamp.max_count(MAX_LEVEL) as u32);
     let mut q = army_town();
     q.train(Troop::Fighter, 0).unwrap();
     q.train(Troop::Fighter, 0).unwrap();
@@ -650,12 +657,17 @@ fn the_army_round_trips_through_the_save_text() {
     t.train(Troop::Fighter, 5_000).unwrap();
     let back = Town::decode(&t.encode()).unwrap();
     assert_eq!(back, t);
-    // Damaged army parts are refused.
+    // Army parts that aren't troops are refused; a missing or extra troop
+    // count is padded or truncated, and an army over its housing is trimmed.
     let text = t.encode();
     let (head, _) = text.split_once('#').unwrap();
-    for bad in ["#1,2#0", "#1,2,3,4,5#0", "#0,0,0,0#7", "#99,0,0,0#"] {
+    for bad in ["#0,0,0,0#7", "#0,x,0,0#", "#0,0,0,0#0,9"] {
         assert!(Town::decode(&format!("{head}{bad}")).is_none(), "{bad}");
     }
+    assert_eq!(Town::decode(&format!("{head}#1,2#0")).unwrap().army, vec![1, 0, 0]);
+    assert_eq!(Town::decode(&format!("{head}#1,1,1,4,5#0")).unwrap().army, vec![1, 1, 1]);
+    let over = Town::decode(&format!("{head}#99,0,0,0#")).unwrap();
+    assert_eq!((over.army[0], over.housing_used()), (20, 20));
 }
 
 #[test]
@@ -822,10 +834,10 @@ fn power_hours_double_production_and_capacity_then_expire() {
     t.add_reviews(100, DAY, mark);
     assert!(t.study.powered(mark) && !t.study.powered(mark + H));
     let b = t.get(id).unwrap().clone();
-    // Level 1 makes 2/s and holds 100: in power it makes 4/s and holds 200.
-    assert_eq!(b.waiting_in(mark + 10_000, t.power()), 40);
-    assert_eq!(b.waiting_in(mark + 100_000, t.power()), 200);
-    assert_eq!(b.waiting(mark + 100_000), 100, "without the window: normal cap");
+    // Level 1 makes 250/h and holds 2,500: in power it makes 500/h and holds 5,000.
+    assert_eq!(b.waiting_in(mark + 30 * MIN, t.power()), 250);
+    assert_eq!(b.waiting_in(mark + 20 * HOUR, t.power()), 5000);
+    assert_eq!(b.waiting(mark + 20 * HOUR), 2500, "without the window: normal cap");
     // A 4-hour cap per day.
     t.add_reviews(900, DAY, mark);
     assert_eq!(t.study.power_today, 4);
@@ -860,10 +872,10 @@ fn a_power_hour_bank_above_the_normal_cap_survives_save_and_reload() {
     let mark = t.get(id).unwrap().mark;
     t.add_reviews(100, DAY, mark);
     // A second power hour banks every mine at its doubled cap.
-    t.add_reviews(100, DAY, mark + 100_000);
-    assert_eq!(t.get(id).unwrap().banked_milli, 200_000);
+    t.add_reviews(100, DAY, mark + 20 * HOUR);
+    assert_eq!(t.get(id).unwrap().banked_milli, 5_000_000);
     let back = Town::decode(&t.encode()).expect("a power-hour bank must reload");
-    assert_eq!(back.get(id).unwrap().banked_milli, 200_000);
+    assert_eq!(back.get(id).unwrap().banked_milli, 5_000_000);
 }
 
 // ---- Cloud save (SPEC-3 T3) ----
@@ -900,7 +912,7 @@ fn cloud_joins_signs_in_counts_anki_reviews_once_and_uploads_with_its_version() 
     // The same event again (say after a reload before the server heard) counts nothing.
     sim.run(6000.0);
     let up = ask(&sim);
-    assert!(up.starts_with("4\tsave\tTOKEN\t0\t4\t5\tv2|"), "{up:?}");
+    assert!(up.starts_with("4\tsave\tTOKEN\t0\t5\t5\tv2|"), "{up:?}");
     net(&mut sim, "4\tok\t1");
     {
         let c = sim.world().resource::<village_logic::cloud::Cloud>();
@@ -977,7 +989,7 @@ fn anki_reviews_lost_to_a_conflict_are_counted_from_the_winning_save() {
     net(&mut sim, "2\tok\t3\t5:50:20000\t");
     assert_eq!(sim.world().resource::<Town>().knowledge, k + 10);
     sim.run(6000.0);
-    assert!(ask(&sim).starts_with("3\tsave\tTOKEN\t3\t4\t5\t"), "{:?}", ask(&sim));
+    assert!(ask(&sim).starts_with("3\tsave\tTOKEN\t3\t5\t5\t"), "{:?}", ask(&sim));
     // Another device won with a save that never counted event 5.
     let other = Town::new();
     let text = format!("v2|5000|{}@1795850001000", other.encode());
@@ -985,7 +997,7 @@ fn anki_reviews_lost_to_a_conflict_are_counted_from_the_winning_save() {
     net(&mut sim, &format!("4\tok\t4\t5:50:20000\t{text}"));
     assert_eq!(sim.world().resource::<Town>().knowledge, 10, "event 5 counted into the adopted save");
     sim.run(6000.0);
-    assert!(ask(&sim).starts_with("5\tsave\tTOKEN\t4\t4\t5\t"), "{:?}", ask(&sim));
+    assert!(ask(&sim).starts_with("5\tsave\tTOKEN\t4\t5\t5\t"), "{:?}", ask(&sim));
 }
 
 #[test]

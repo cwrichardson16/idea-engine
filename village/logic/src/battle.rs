@@ -81,15 +81,45 @@ pub const CAMPS: [(&str, &[Plan]); 4] = [
     ),
 ];
 
-/// Hit points a camp building starts with.
-pub fn building_hp(kind: Kind) -> i32 {
-    match kind {
-        Kind::TownHall => 400,
-        Kind::Cannon | Kind::ArcherTower => 300,
-        Kind::GoldStorage | Kind::ElixirStorage => 250,
-        Kind::GoldMine | Kind::ElixirCollector => 200,
-        _ => 150,
-    }
+/// Building hit points by level, in percent of level 1 (level 8 = 4×).
+pub const BUILDING_HP_SCALE: [i32; 8] = [100, 125, 155, 190, 230, 275, 330, 400];
+/// Troop hit points and damage by troop level, in percent of level 1.
+pub const TROOP_SCALE: [i32; 8] = [100, 115, 130, 145, 160, 180, 200, 225];
+/// Camp loot by the raider's Keep level, in percent of the camp plan's (level 1).
+pub const CAMP_LOOT_SCALE: [u32; 8] = [100, 200, 400, 700, 1200, 2000, 3200, 5000];
+
+fn at_level<const N: usize>(table: &[i32; N], level: u8) -> i32 {
+    table[usize::from(level.clamp(1, N as u8)) - 1]
+}
+
+/// Hit points a building of `kind` starts a battle with at `level`.
+pub fn building_hp(kind: Kind, level: u8) -> i32 {
+    let base = match kind {
+        Kind::TownHall => 1800,
+        Kind::Cannon | Kind::ArcherTower => 900,
+        Kind::GoldStorage | Kind::ElixirStorage => 750,
+        Kind::GoldMine | Kind::ElixirCollector => 600,
+        _ => 450,
+    };
+    base * at_level(&BUILDING_HP_SCALE, level) / 100
+}
+
+/// Campaign camp `camp` as a raider with Keep level `keep` meets it: every
+/// building `keep - 1` levels above its plan (max 8), its loot scaled by
+/// `CAMP_LOOT_SCALE`. At Keep 1 it is exactly the plan in `CAMPS`.
+pub fn camp_plan(camp: usize, keep: u8) -> Vec<Plan> {
+    let up = keep.clamp(1, 8) - 1;
+    let loot = CAMP_LOOT_SCALE[usize::from(up)];
+    CAMPS[camp.min(CAMPS.len() - 1)]
+        .1
+        .iter()
+        .map(|p| Plan {
+            level: (p.level + up).min(8),
+            gold: p.gold * loot / 100,
+            elixir: p.elixir * loot / 100,
+            ..*p
+        })
+        .collect()
 }
 
 /// A defense's (range in milli-tiles, damage per shot, ticks between shots).
@@ -97,21 +127,29 @@ pub fn defense(kind: Kind, level: u8) -> Option<(i64, i32, u32)> {
     let i = usize::from(level.clamp(1, 8) - 1);
     match kind {
         // Every 0.9 s and every 0.45 s.
-        Kind::Cannon => Some((7 * MILLI + 500, [10, 14, 18, 23, 29, 36, 44, 53][i], 27)),
-        Kind::ArcherTower => Some((8 * MILLI + 500, [5, 7, 9, 12, 15, 19, 23, 28][i], 14)),
+        Kind::Cannon => Some((7 * MILLI + 500, [28, 39, 50, 64, 81, 101, 123, 148][i], 27)),
+        Kind::ArcherTower => Some((8 * MILLI + 500, [14, 20, 25, 34, 42, 53, 64, 78][i], 14)),
         _ => None,
     }
 }
 
-/// A troop's (hit points, damage per hit, ticks between hits, milli-tiles per tick, reach in milli-tiles).
+/// A troop's (hit points, damage per hit, ticks between hits, milli-tiles per tick, reach in milli-tiles) at level 1.
 pub fn stats(t: Troop) -> (i32, i32, u32, i64, i64) {
-    match t {
+    troop_stats(t, 1)
+}
+
+/// A troop's stats at troop `level` (the Barracks level): hit points and
+/// damage grow by `TROOP_SCALE`; speed and reach stay.
+pub fn troop_stats(t: Troop, level: u8) -> (i32, i32, u32, i64, i64) {
+    let k = at_level(&TROOP_SCALE, level);
+    let (hp, damage, every, speed, reach) = match t {
         // 9 damage a second, 1.5 tiles a second.
         Troop::Fighter => (55, 9, TPS, 50, 700),
         Troop::Archer => (24, 8, TPS, 50, 4000),
         // 12 damage a second, 0.9 tiles a second.
         Troop::Brute => (360, 12, TPS, 30, 700),
-    }
+    };
+    (hp * k / 100, damage * k / 100, every, speed, reach)
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Data)]
@@ -181,6 +219,8 @@ pub struct Battle {
     pub elixir: u32,
     pub over: bool,
     pub deployed: u32,
+    /// The attacker's troop level (their Barracks level); 0 counts as 1.
+    pub troop_level: u8,
 }
 
 /// Distance squared, in milli-tiles squared.
@@ -192,8 +232,14 @@ impl Battle {
     /// A battle at camp `camp` with `reserve` troops to drop. `looted` marks
     /// buildings (by index in the camp plan) already looted on earlier raids.
     pub fn new(camp: usize, reserve: Vec<u32>, looted: u32) -> Battle {
-        let plan = CAMPS[camp.min(CAMPS.len() - 1)].1;
-        Battle { camp: camp as u32, ..Battle::on(plan, reserve, looted) }
+        Battle::camp(camp, 1, 1, reserve, looted)
+    }
+
+    /// A raid on camp `camp` by a player at Keep level `keep` with troop level `troop_level`.
+    pub fn camp(camp: usize, keep: u8, troop_level: u8, reserve: Vec<u32>, looted: u32) -> Battle {
+        let plan = camp_plan(camp, keep);
+        let camp = camp.min(CAMPS.len() - 1) as u32;
+        Battle { camp, troop_level, ..Battle::on(&plan, reserve, looted) }
     }
 
     /// A battle against any layout (a campaign camp or a player's village).
@@ -202,7 +248,7 @@ impl Battle {
             .iter()
             .enumerate()
             .map(|(i, b)| {
-                let hp = building_hp(b.kind);
+                let hp = building_hp(b.kind, b.level);
                 Target {
                     kind: b.kind,
                     level: b.level,
@@ -217,7 +263,7 @@ impl Battle {
                 }
             })
             .collect();
-        Battle { targets, reserve, ..Battle::default() }
+        Battle { targets, reserve, troop_level: 1, ..Battle::default() }
     }
 
     pub fn ticks_left(&self) -> u32 {
@@ -275,7 +321,7 @@ impl Battle {
         self.reserve[t.index()] -= 1;
         let n = i64::from(self.deployed);
         let (dx, dz) = ((n % 5 - 2) * 150, (n / 5 % 5 - 2) * 150);
-        let (hp, ..) = stats(t);
+        let (hp, ..) = troop_stats(t, self.troop_level);
         self.units.push(Unit {
             troop: t,
             x: i64::from(x) * MILLI + MILLI / 2 + dx,
@@ -321,7 +367,7 @@ impl Battle {
             };
             self.units[i].target = target.map(|t| t as u32);
             let Some(ti) = target else { continue };
-            let (_, damage, every, speed, reach) = stats(self.units[i].troop);
+            let (_, damage, every, speed, reach) = troop_stats(self.units[i].troop, self.troop_level);
             let (cx, cz) = self.targets[ti].centre();
             let reach = reach + self.targets[ti].half();
             let u = &mut self.units[i];

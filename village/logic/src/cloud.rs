@@ -64,6 +64,8 @@ pub struct Cloud {
     pub code: String,
     pub claim: String,
     pub want_code: bool,
+    /// The cloud save can't be read by this build: never upload over it.
+    pub unreadable: bool,
     /// A bug report waiting to go (sent once signed in), and the one out now.
     pub bug: String,
     pub bug_sending: String,
@@ -122,6 +124,7 @@ pub fn step(w: &mut World, net: &str) {
         answer(w, net, now);
     }
     let raid = fight::active(w);
+    let failed = w.resource::<Ui>().load_failed;
     let mut c = w.resource_mut::<Cloud>();
     if c.pending != 0 {
         return;
@@ -168,6 +171,10 @@ pub fn step(w: &mut World, net: &str) {
         }
         Step::Moved => {}
         Step::Ready => {
+            // Never upload over a save this device couldn't read (lib.rs `load`).
+            if failed || c.unreadable {
+                return;
+            }
             let has_events = !c.applied.is_empty();
             if (c.dirty != c.sent || has_events) && !c.dirty.is_empty() && now >= c.last_put + SAVE_GAP_MS {
                 let (t, base, text) = (c.token.clone(), c.version.to_string(), c.dirty.clone());
@@ -375,7 +382,10 @@ fn fetched(w: &mut World, rest: &[&str]) {
         !text.is_empty()
             && (c.take_cloud || if c.synced { version > c.version } else { wall_of(text) > c.local_wall })
     };
-    if take {
+    // A cloud save this build can't read (maybe a newer version's): never
+    // upload over it from here, whichever is newer.
+    let unreadable = !text.is_empty() && read_kept(text).is_none();
+    if take && !unreadable {
         adopt(w, text);
     }
     {
@@ -385,7 +395,12 @@ fn fetched(w: &mut World, rest: &[&str]) {
         c.step = Step::Ready;
         c.take_cloud = false;
         c.synced = true;
-        c.status = "☁️ saved".into();
+        c.unreadable = unreadable;
+        c.status = if unreadable {
+            "☁️ the cloud save needs a newer version: not uploading".into()
+        } else {
+            "☁️ saved".into()
+        };
         // Upload after this tick's save has captured what the events changed.
         c.last_put = now;
     }
@@ -417,7 +432,7 @@ fn wall_of(text: &str) -> f64 {
     text.rsplit_once('@').and_then(|(_, w)| w.parse().ok()).unwrap_or(0.0)
 }
 
-/// Loads a save from the cloud in place of this device's.
+/// Loads a (readable: see `fetched`) save from the cloud in place of this device's.
 fn adopt(w: &mut World, text: &str) {
     let wall = wall_ms(w);
     load(w, &format!("{wall} {text}"));

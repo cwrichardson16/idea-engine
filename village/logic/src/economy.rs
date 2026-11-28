@@ -15,8 +15,8 @@ pub const START_ELIXIR: u32 = 500;
 pub const START_GEMS: u32 = 50;
 /// Speed-ups: one gem finishes this many seconds of a timer (rounded up).
 pub const GEM_SECONDS: u64 = 10;
-/// Speed-ups: one Knowledge finishes this many seconds (study pays better than gems).
-pub const KNOWLEDGE_SECONDS: u64 = 60;
+/// Speed-ups: one Knowledge finishes this many seconds (5 minutes: study pays better than gems).
+pub const KNOWLEDGE_SECONDS: u64 = 300;
 /// Study (SPEC-3 T2): counted reviews per Knowledge.
 pub const REVIEWS_PER_KNOWLEDGE: u32 = 5;
 /// Daily chest tiers: reviews in one review day (4 am to 4 am) that open each chest.
@@ -26,7 +26,17 @@ pub const STREAK_REVIEWS: u32 = 50;
 /// Every this many reviews in a day adds a power hour, up to `POWER_HOURS_MAX` a day.
 pub const POWER_REVIEWS: u32 = 100;
 pub const POWER_HOURS_MAX: u32 = 4;
+/// What each daily chest tier pays per Keep level (before the streak bonus).
+pub const CHEST_PAY: [u32; 4] = [150, 400, 800, 1600];
 const HOUR_MS: u64 = 3_600_000;
+
+/// The save contract: the version written into every save (`Town::encode`'s
+/// last section). Bump it, add a migration in `Town::migrate`, and freeze the
+/// old format's string in `old_saves_decode` whenever a number `valid()` or
+/// `decode` reads changes (see village/CLAUDE.md "SAVE_CONTRACT").
+/// v4 = every save before the version was written in (no contract section);
+/// v5 = step 1 (production per hour, camps refill daily: `camp_day`).
+pub const SAVE_CONTRACT: u32 = 5;
 
 /// What studying is worth today, and the power-hour window, in one place.
 #[derive(Clone, Debug, Default, PartialEq, Data)]
@@ -65,9 +75,13 @@ pub fn review_day(wall_ms: u64, utc_offset_min: i64) -> u32 {
     (local.max(0) / 86_400_000) as u32
 }
 
+/// Mint and Farm output per hour, by level.
+const RATE_PER_HOUR: [u64; 8] = [250, 320, 400, 500, 900, 1200, 1500, 1900];
+/// How many hours of output a Mint or Farm holds before it stops, by level.
+const HOLD_HOURS: [u64; 8] = [10, 10, 10, 10, 10, 10, 10, 10];
 const MINE_COST: [u32; 8] = [150, 300, 700, 1400, 3000, 6000, 12000, 24000];
 const STORE_COST: [u32; 8] = [300, 600, 1200, 3000, 8000, 20000, 50000, 100000];
-const STORE_HOLDS: [u32; 8] = [1500, 3000, 5000, 10000, 25000, 60000, 150000, 350000];
+const STORE_HOLDS: [u32; 8] = [1500, 3000, 6000, 12000, 30000, 70000, 160000, 350000];
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Data)]
 pub enum Kind {
@@ -179,14 +193,15 @@ impl Kind {
             Kind::ArcherTower => [50, 110, 200, 1200, 3600, 7200, 14400, 28800][i],
         }
     }
-    /// What a mine or collector makes: (resource, per second, holds).
+    /// What a mine or collector makes: (resource, per HOUR, holds).
+    /// Every level holds `HOLD_HOURS` of production (test: 2 to 12 hours).
     pub fn production(self, level: u8) -> Option<(Res, u64, u64)> {
         if level == 0 {
             return None;
         }
         let i = usize::from(level.min(MAX_LEVEL) - 1);
-        let rate = [2, 3, 4, 6, 8, 11, 15, 20][i];
-        let holds = [100, 200, 300, 600, 1200, 2400, 4000, 6000][i];
+        let rate = RATE_PER_HOUR[i];
+        let holds = rate * HOLD_HOURS[i];
         match self {
             Kind::GoldMine => Some((Res::Gold, rate, holds)),
             Kind::ElixirCollector => Some((Res::Elixir, rate, holds)),
@@ -229,7 +244,7 @@ impl Kind {
     /// Army camp space at a level.
     pub fn housing(self, level: u8) -> u32 {
         match (self, level) {
-            (Kind::ArmyCamp, 1..) => [24, 36, 48, 60, 72, 84, 100, 120][usize::from(level.min(MAX_LEVEL) - 1)],
+            (Kind::ArmyCamp, 1..) => [20, 24, 28, 32, 36, 40, 45, 50][usize::from(level.min(MAX_LEVEL) - 1)],
             _ => 0,
         }
     }
@@ -238,8 +253,9 @@ impl Kind {
     }
 }
 
-/// The longest training queue.
-pub const QUEUE_MAX: usize = 10;
+/// The longest training queue: more than the biggest army, so the Muster
+/// Grounds (housing) are the only limit.
+pub const QUEUE_MAX: usize = 500;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Data)]
 pub enum Troop {
@@ -349,11 +365,16 @@ impl Building {
         let Some((_, rate, holds)) = self.kind.production(self.level) else {
             return 0;
         };
-        let made = if self.busy() {
+        // Output made by village time t, in thousandths, counted from time 0: a
+        // span's output is made(end) - made(start), so collecting often loses
+        // no rounding (back-to-back spans add up exactly).
+        let made_by = |t: u64| (u128::from(rate) * u128::from(t) / 3600).min(u128::from(u64::MAX / 4)) as u64;
+        let made = if self.busy() || now <= self.mark {
             0
         } else {
-            let boosted = now.min(until).saturating_sub(self.mark.max(from));
-            rate * (now.saturating_sub(self.mark) + boosted)
+            let (bs, be) = (self.mark.max(from), now.min(until));
+            let boosted = if be > bs { made_by(be) - made_by(bs) } else { 0 };
+            made_by(now) - made_by(self.mark) + boosted
         };
         let boosted_since_mark = until > self.mark && from < until;
         let cap = if boosted_since_mark { holds * 2000 } else { holds * 1000 };
@@ -389,6 +410,8 @@ pub struct Town {
     pub looted: Vec<u32>,
     /// Today's studying, the streak and the power hour (SPEC-3 T2).
     pub study: Study,
+    /// The review day (4 am rollover) the campaign camps last refilled their loot.
+    pub camp_day: u32,
 }
 
 /// How many campaign camps there are (battle::CAMPS).
@@ -426,7 +449,19 @@ impl Town {
             stars: vec![0; CAMP_COUNT],
             looted: vec![0; CAMP_COUNT],
             study: Study::default(),
+            camp_day: 0,
         }
+    }
+
+    /// Camps refill their loot once per review day (rolls at 4 am local, like
+    /// Anki). Best stars stay. Returns whether they refilled.
+    pub fn refill_camps(&mut self, day: u32) -> bool {
+        if day <= self.camp_day {
+            return false;
+        }
+        self.camp_day = day;
+        self.looted.iter_mut().for_each(|m| *m = 0);
+        true
     }
 
     /// The end of a raid on campaign camp `camp`: keep the best stars, mark
@@ -857,28 +892,43 @@ impl Town {
             "#{},{},{},{},{},{},{},{},{},{}",
             s.day, s.reviews, s.chests, s.power_today, s.toward, s.streak, s.streak_day, s.power_from, s.power_until, s.last_event
         );
+        // Since SAVE_CONTRACT 5: "#contract,camp_day".
+        out += &format!("#{SAVE_CONTRACT},{}", self.camp_day);
         out
     }
 
-    /// Reads `encode`'s text back; None if it isn't a village.
+    /// Reads `encode`'s text back (any past format: see `old_saves_decode`).
+    /// Numbers the rules limit (gold over the cap, banked over a mine's holds,
+    /// levels over the max, troop and camp lists of another length, an army over
+    /// its housing) are clamped, never refused, so a retune can't wipe a
+    /// village. None only for text that isn't a village: wrong shape, not
+    /// numbers, an unknown building kind or troop, a newer contract than this
+    /// build, or a layout play can't make (overlaps, duplicate ids...).
     pub fn decode(text: &str) -> Option<Town> {
-        // A v1 village has no army part.
-        let mut sections = text.split('#');
-        let text = sections.next()?;
-        let (a, q, st, lo) = (sections.next(), sections.next(), sections.next(), sections.next());
-        let study = match sections.next() {
+        // Sections by format: 1 = v1; 3 = + army; 5 = + campaign; 6 = + study;
+        // 7 = + contract (v5 on). Old unversioned saves are contract 4.
+        let sections: Vec<&str> = text.split('#').collect();
+        if !matches!(sections.len(), 1 | 3 | 5 | 6 | 7) {
+            return None;
+        }
+        let nums = |s: &str| -> Option<Vec<u64>> { s.split(',').map(|n| n.parse().ok()).collect() };
+        let small = |v: u64| u32::try_from(v).ok();
+        let (version, camp_day) = match sections.get(6) {
+            None => (4, 0),
+            Some(c) => match nums(c)?[..] {
+                [5, day] => (5, small(day)?),
+                _ => return None,
+            },
+        };
+        let study = match sections.get(5) {
             None => Study::default(),
             Some(sd) => {
-                if lo.is_none() {
-                    return None;
-                }
-                let n: Vec<u64> = sd.split(',').map(|n| n.parse().ok()).collect::<Option<_>>()?;
+                let n = nums(sd)?;
                 let (day, reviews, chests, power_today, toward, streak, streak_day, power_from, power_until, last_event) = match n[..] {
                     [a, b, c, d, e, f, g, h, i] => (a, b, c, d, e, f, g, h, i, 0),
                     [a, b, c, d, e, f, g, h, i, j] => (a, b, c, d, e, f, g, h, i, j),
                     _ => return None,
                 };
-                let small = |v: u64| u32::try_from(v).ok();
                 Study {
                     day: small(day)?,
                     reviews: small(reviews)?,
@@ -893,27 +943,19 @@ impl Town {
                 }
             }
         };
-        if sections.next().is_some() {
-            return None;
-        }
         // An army-era village has no campaign part.
-        let (stars, looted) = match (st, lo) {
-            (None, None) => (vec![0; CAMP_COUNT], vec![0; CAMP_COUNT]),
+        let (stars, looted) = match (sections.get(3), sections.get(4)) {
             (Some(st), Some(lo)) => (
-                st.split(',').map(|n| n.parse().ok()).collect::<Option<Vec<u8>>>()?,
-                lo.split(',').map(|n| n.parse().ok()).collect::<Option<Vec<u32>>>()?,
+                nums(st)?.into_iter().map(|n| n.min(3) as u8).collect(),
+                nums(lo)?.into_iter().map(small).collect::<Option<Vec<u32>>>()?,
             ),
-            _ => return None,
+            _ => (vec![0; CAMP_COUNT], vec![0; CAMP_COUNT]),
         };
-        let (army, queue_start, queue) = match (a, q) {
-            (None, None) => (vec![0; TROOPS.len()], 0, Vec::new()),
+        let (army, queue_start, queue) = match (sections.get(1), sections.get(2)) {
             (Some(a), Some(q)) => {
-                let nums: Vec<u64> = a.split(',').map(|n| n.parse().ok()).collect::<Option<_>>()?;
-                let (start, counts) = nums.split_last()?;
-                if counts.len() != TROOPS.len() {
-                    return None;
-                }
-                let army = counts.iter().map(|&n| u32::try_from(n).ok()).collect::<Option<Vec<u32>>>()?;
+                let n = nums(a)?;
+                let (start, counts) = n.split_last()?;
+                let army = counts.iter().map(|&n| small(n)).collect::<Option<Vec<u32>>>()?;
                 let queue = if q.is_empty() {
                     Vec::new()
                 } else {
@@ -923,9 +965,9 @@ impl Town {
                 };
                 (army, *start, queue)
             }
-            _ => return None,
+            _ => (vec![0; TROOPS.len()], 0, Vec::new()),
         };
-        let mut parts = text.split(';');
+        let mut parts = sections[0].split(';');
         let head: Vec<u32> = parts
             .next()?
             .split(',')
@@ -936,14 +978,14 @@ impl Town {
         };
         let mut buildings = Vec::new();
         for p in parts {
-            let f: Vec<u64> = p.split(',').map(|n| n.parse().ok()).collect::<Option<_>>()?;
+            let f = nums(p)?;
             let [id, kind, level, x, z, done_at, started_at, banked_milli, mark] = f[..] else {
                 return None;
             };
             buildings.push(Building {
-                id: id as u32,
-                kind: *KINDS.get(kind as usize)?,
-                level: u8::try_from(level).ok()?.min(MAX_LEVEL),
+                id: small(id)?,
+                kind: *KINDS.get(usize::try_from(kind).ok()?)?,
+                level: u8::try_from(level).ok()?,
                 x: i32::try_from(x).ok()?,
                 z: i32::try_from(z).ok()?,
                 done_at,
@@ -952,7 +994,7 @@ impl Town {
                 mark,
             });
         }
-        let town = Town {
+        let mut town = Town {
             gold,
             elixir,
             gems,
@@ -965,8 +1007,77 @@ impl Town {
             stars,
             looted,
             study,
+            camp_day,
         };
+        town.migrate(version);
+        town.clamp();
         town.valid().then_some(town)
+    }
+
+    /// Brings a decoded village from save contract `from` up to `SAVE_CONTRACT`.
+    /// Each bump adds one step here; values the new rules limit are then clamped.
+    pub fn migrate(&mut self, from: u32) {
+        if from < 5 {
+            // v4 → v5: production became per hour (banked amounts are still
+            // whole units × 1000, so they carry over; `clamp` trims them to the
+            // new holds) and camps refill daily: never refilled yet.
+            self.camp_day = 0;
+        }
+    }
+
+    /// Clamps every number the rules limit, and pads or truncates per-troop and
+    /// per-camp lists, so an old save always fits today's rules.
+    pub fn clamp(&mut self) {
+        for b in &mut self.buildings {
+            let max = b.kind.max_level();
+            b.level = b.level.min(max);
+            if b.busy() && b.level >= max {
+                // Upgrading past the (new) max: the work is dropped.
+                b.done_at = 0;
+                b.started_at = 0;
+            }
+        }
+        let th = self.town_hall_level();
+        for b in &mut self.buildings {
+            if b.kind != Kind::TownHall {
+                b.level = b.level.min(th);
+            }
+            let holds = b.kind.production(b.level).map_or(0, |(_, _, h)| h);
+            // A power hour lets a mine hold twice as much until it is collected.
+            b.banked_milli = b.banked_milli.min(holds * 2000);
+        }
+        self.army.resize(TROOPS.len(), 0);
+        self.stars.resize(CAMP_COUNT, 0);
+        self.looted.resize(CAMP_COUNT, 0);
+        for s in &mut self.stars {
+            *s = (*s).min(3);
+        }
+        self.queue.truncate(QUEUE_MAX);
+        // An army over its housing: drop queued troops from the back, then
+        // trained ones from the last kind.
+        let cap = u64::from(self.housing_cap());
+        let used = |t: &Town| -> u64 {
+            let trained: u64 = TROOPS.iter().map(|k| u64::from(t.trained(*k)) * u64::from(k.housing())).sum();
+            trained + t.queue.iter().map(|k| u64::from(k.housing())).sum::<u64>()
+        };
+        while used(self) > cap && !self.queue.is_empty() {
+            self.queue.pop();
+        }
+        for k in TROOPS.iter().rev() {
+            let over = used(self).saturating_sub(cap);
+            if over == 0 {
+                break;
+            }
+            let have = u64::from(self.trained(*k));
+            let drop = have.min(over.div_ceil(u64::from(k.housing())));
+            self.army[k.index()] = (have - drop) as u32;
+        }
+        if self.queue.is_empty() {
+            self.queue_start = 0;
+        }
+        let (gc, ec) = self.caps();
+        self.gold = self.gold.min(gc.max(START_GOLD));
+        self.elixir = self.elixir.min(ec.max(START_ELIXIR));
     }
 
     /// Whether a village could have come from play: unique ids below next_id,
@@ -1063,14 +1174,11 @@ impl Town {
                 said.push(format!("🎁 Week chest: +{g} 🪙 +{e} 🌾 +25 👑"));
             }
         }
-        let streak = self.study.streak_on(day).min(7);
+        let streak = self.study.streak_on(day);
         for (i, &need) in CHEST_TIERS.iter().enumerate() {
             if after >= need && self.study.chests & (1 << i) == 0 {
                 self.study.chests |= 1 << i;
-                let base = [150, 400, 800, 1600][i] * th;
-                let pay = base + base * streak / 10;
-                let g = self.earn(Res::Gold, pay);
-                let e = self.earn(Res::Elixir, pay);
+                let (g, e) = self.pay_chest(i, streak);
                 said.push(if g + e == 0 {
                     format!("🎁 Chest {} opened, but storage is full: spend some first next time", i + 1)
                 } else {
@@ -1080,19 +1188,35 @@ impl Town {
         }
         let due = (after / POWER_REVIEWS).min(POWER_HOURS_MAX);
         if self.study.power_today < due {
-            self.bank_all(now);
-            self.settle_training(now);
-            let add = u64::from(due - self.study.power_today) * HOUR_MS;
+            let hours = due - self.study.power_today;
             self.study.power_today = due;
-            if now >= self.study.power_until {
-                self.study.power_from = now;
-                self.study.power_until = now + add;
-            } else {
-                self.study.power_until += add;
-            }
+            self.start_power(now, hours);
             said.push("⚡ Power hour: double production and training".into());
         }
         said
+    }
+
+    /// Pays daily chest `tier` (0 to 3): `CHEST_PAY[tier]` × Keep level of each
+    /// resource, plus 10% per streak day (up to 7), up to the storage caps.
+    /// Returns the (gold, elixir) that fitted.
+    pub fn pay_chest(&mut self, tier: usize, streak: u32) -> (u32, u32) {
+        let th = u32::from(self.town_hall_level());
+        let base = CHEST_PAY[tier.min(CHEST_PAY.len() - 1)] * th;
+        let pay = base + base * streak.min(7) / 10;
+        (self.earn(Res::Gold, pay), self.earn(Res::Elixir, pay))
+    }
+
+    /// Adds `hours` power hours from `now` (or onto the running window).
+    pub fn start_power(&mut self, now: u64, hours: u32) {
+        self.bank_all(now);
+        self.settle_training(now);
+        let add = u64::from(hours) * HOUR_MS;
+        if now >= self.study.power_until {
+            self.study.power_from = now;
+            self.study.power_until = now + add;
+        } else {
+            self.study.power_until += add;
+        }
     }
 
     /// Where a building of `kind` would first fit, scanning from the middle out.

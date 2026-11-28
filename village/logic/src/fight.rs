@@ -58,9 +58,11 @@ pub fn command(w: &mut World, verb: &str, arg: &str) -> Result<bool, String> {
             let town = w.resource::<Town>();
             let reserve = town.army.clone();
             let looted = town.looted.get(camp).copied().unwrap_or(0);
+            let (keep, troop_level) = (town.town_hall_level(), town.barracks_level());
             let first = reserve.iter().position(|&n| n > 0).unwrap_or(0) as u32;
+            drop(town);
             let mut f = w.resource_mut::<Fight>();
-            f.battle = Some(Battle::new(camp, reserve, looted));
+            f.battle = Some(Battle::camp(camp, keep, troop_level, reserve, looted));
             f.troop = first;
             f.result = None;
             Ok(true)
