@@ -33,7 +33,7 @@ fn the_world_publishes_the_hud() {
     assert_eq!(w.resource::<Town>().gold, 500);
     let h = hud(w, now_ms(w), String::new());
     assert_eq!((h.gold, h.gold_cap, h.builders, h.town_hall), (500, 1000, 1, 1));
-    assert_eq!(h.shop.len(), 5);
+    assert_eq!(h.shop.len(), KINDS.len() - 1);
 }
 
 // ---- F2: shop and placement ----
@@ -376,7 +376,7 @@ fn the_world_saves_after_loading_and_a_reload_counts_time_away() {
     sim.post("place");
     sim.run(500.0);
     let saved = sim.world().resource::<Shown>().last_save.clone();
-    assert!(saved.starts_with("save v1|"), "{saved}");
+    assert!(saved.starts_with("save v2|"), "{saved}");
     let id = 2; // the mine
     // The page keeps it stamped with the real time; come back 10 minutes later.
     let kept = format!("{}@5000000", &saved["save ".len()..]);
@@ -413,7 +413,7 @@ fn a_reload_after_no_time_adds_nothing_and_bad_saves_start_fresh() {
     let w = again.world();
     assert!(now_ms(w) >= then && now_ms(w) <= then + 100, "time continues, no jump");
     assert_eq!(w.resource::<Town>().builders_busy(), 1);
-    for bad in ["load 9000 v1|5|garbage@1", "load 9000 v2|5|500,500,50,0,2;1,0,1,13,13,0,0,0,0@1", "load x"] {
+    for bad in ["load 9000 v1|5|garbage@1", "load 9000 v9|5|500,500,50,0,2;1,0,1,13,13,0,0,0,0@1", "load x"] {
         let mut s = Sim::<Village>::new(Options::default()).unwrap();
         s.post(bad);
         s.run(100.0);
@@ -475,4 +475,127 @@ fn picking_follows_the_camera_when_panned_and_zoomed() {
     let far_x = tile_at(view, off, &CamView::home()).unwrap().0 - home.0;
     let near_x = tile_at(view, off, &close).unwrap().0 - home.0;
     assert!(near_x < far_x, "{near_x} < {far_x}");
+}
+
+/// A slice-1 save, captured before slice 2 changed anything. It must always load.
+const V1_SAVE: &str = "v1|200|500,350,50,0,3;1,0,1,13,13,0,0,0,0;2,1,0,9,9,10200,200,0,200";
+
+#[test]
+fn a_slice_one_save_still_loads_with_an_empty_army() {
+    let mut sim = Sim::<Village>::new(Options::default()).unwrap();
+    sim.post(format!("load 9000 {V1_SAVE}@9000"));
+    sim.run(100.0);
+    let town = sim.world().resource::<Town>();
+    assert_eq!(town.buildings.len(), 2);
+    assert_eq!(town.buildings[1].kind, Kind::GoldMine);
+    assert_eq!(town.army, vec![0, 0, 0]);
+    assert!(town.queue.is_empty());
+}
+
+fn army_town() -> Town {
+    let mut t = town_with(1000, 1000);
+    let now = 0;
+    let b = t.place(Kind::Barracks, 0, 0, now).unwrap();
+    t.skip(b, now, Pay::Gems).unwrap();
+    let c = t.place(Kind::ArmyCamp, 5, 0, now).unwrap();
+    t.skip(c, now, Pay::Gems).unwrap();
+    t.elixir = 1000;
+    t
+}
+
+#[test]
+fn new_kinds_go_at_the_end_so_old_saves_keep_their_buildings() {
+    assert_eq!(&KINDS[..6], &[
+        Kind::TownHall, Kind::GoldMine, Kind::ElixirCollector,
+        Kind::GoldStorage, Kind::ElixirStorage, Kind::BuilderHut,
+    ]);
+}
+
+#[test]
+fn training_needs_a_barracks_costs_elixir_and_takes_time() {
+    let mut t = town_with(1000, 1000);
+    assert_eq!(t.can_train(Troop::Fighter), Err("Build a Barracks".into()));
+    let mut t2 = army_town();
+    assert_eq!(t2.housing_cap(), 20);
+    t2.train(Troop::Fighter, 0).unwrap();
+    t2.train(Troop::Fighter, 0).unwrap();
+    assert_eq!(t2.elixir, 950);
+    assert_eq!(t2.training_left(0), 5);
+    t2.settle(4_999);
+    assert_eq!(t2.trained(Troop::Fighter), 0);
+    t2.settle(5_000);
+    assert_eq!(t2.trained(Troop::Fighter), 1);
+    t2.settle(10_000);
+    assert_eq!(t2.trained(Troop::Fighter), 2);
+    assert!(t2.queue.is_empty());
+    // Archers need barracks level 2.
+    assert_eq!(t2.can_train(Troop::Archer), Err("Needs Barracks level 2".into()));
+    t.gold = 0;
+}
+
+#[test]
+fn housing_counts_queued_troops_and_cancelling_refunds_in_full() {
+    let mut t = army_town();
+    for _ in 0..10 {
+        t.train(Troop::Fighter, 0).unwrap();
+    }
+    assert_eq!(t.can_train(Troop::Fighter), Err("Queue full".into()));
+    t.settle(50_000);
+    assert_eq!(t.trained(Troop::Fighter), 10);
+    for _ in 0..10 {
+        t.train(Troop::Fighter, 50_000).unwrap();
+    }
+    assert_eq!(t.housing_used(), 20);
+    t.settle(200_000);
+    assert_eq!(t.can_train(Troop::Fighter), Err("Army camps full".into()));
+    let mut q = army_town();
+    q.train(Troop::Fighter, 0).unwrap();
+    q.train(Troop::Fighter, 0).unwrap();
+    let before = q.elixir;
+    q.cancel_training(0, 3_000).unwrap();
+    assert_eq!(q.elixir, before + 25);
+    assert_eq!(q.training_left(3_000), 5, "the next one starts from the cancel");
+}
+
+#[test]
+fn training_finishes_while_away() {
+    let mut sim = Sim::<Village>::new(Options::default()).unwrap();
+    sim.run(50.0);
+    {
+        let mut town = sim.world_mut().resource_mut::<Town>();
+        *town = army_town();
+    }
+    sim.post("train fighter");
+    sim.post("train fighter");
+    sim.post("train fighter");
+    sim.run(50.0);
+    sim.post("away 60");
+    sim.run(50.0);
+    assert_eq!(sim.world().resource::<Town>().trained(Troop::Fighter), 3);
+}
+
+#[test]
+fn the_army_round_trips_through_the_save_text() {
+    let mut t = army_town();
+    t.train(Troop::Fighter, 0).unwrap();
+    t.settle(5_000);
+    t.train(Troop::Fighter, 5_000).unwrap();
+    let back = Town::decode(&t.encode()).unwrap();
+    assert_eq!(back, t);
+    // Damaged army parts are refused.
+    let text = t.encode();
+    let (head, _) = text.split_once('#').unwrap();
+    for bad in ["#1,2#0", "#1,2,3,4,5#0", "#0,0,0,0#7", "#99,0,0,0#"] {
+        assert!(Town::decode(&format!("{head}{bad}")).is_none(), "{bad}");
+    }
+}
+
+#[test]
+fn dev_shortcuts_fill_storage_and_raise_the_town_hall() {
+    let mut t = Town::new();
+    t.dev_rich();
+    assert_eq!((t.gold, t.elixir), t.caps());
+    t.dev_town_hall(0);
+    assert_eq!(t.town_hall_level(), 2);
+    assert_eq!(Kind::ArcherTower.max_count(t.town_hall_level()), 1);
 }

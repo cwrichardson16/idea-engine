@@ -4,7 +4,7 @@
 
 pub mod economy;
 
-use economy::{Kind, Pay, Res, Town, GRID, KINDS};
+use economy::{Kind, Pay, Res, Town, Troop, GRID, KINDS, TROOPS};
 use exact_game::*;
 
 #[derive(Default, Args)]
@@ -23,7 +23,7 @@ pub struct Options {
 pub struct SaveContract {
     pub version: u32,
 }
-pub const SAVE_CONTRACT: u32 = 1;
+pub const SAVE_CONTRACT: u32 = 2;
 
 /// Village time: world time plus every span spent away.
 #[derive(Default, Resource)]
@@ -95,7 +95,7 @@ pub struct Shown {
 }
 
 /// The save format's version; a save of another version is ignored.
-pub const SAVE_PREFIX: &str = "v1";
+pub const SAVE_PREFIX: &str = "v2";
 /// Even with no changes, re-save this often so time away is measured well.
 pub const SAVE_EVERY_MS: u64 = 10_000;
 
@@ -133,6 +133,18 @@ pub struct Selected {
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Data)]
+pub struct TrainRow {
+    pub key: String,
+    pub name: String,
+    pub cost: u32,
+    pub secs: u32,
+    pub housing: u32,
+    pub count: u32,
+    /// Why it can't be trained now; empty when it can.
+    pub reason: String,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Data)]
 pub struct Hud {
     pub gold: u32,
     pub gold_cap: u32,
@@ -151,6 +163,13 @@ pub struct Hud {
     pub has_selected: bool,
     pub selected: Selected,
     pub toast: String,
+    pub has_barracks: bool,
+    pub army: Vec<TrainRow>,
+    pub housing_used: u32,
+    pub housing_cap: u32,
+    /// Names of queued troops, the first one training.
+    pub queue: Vec<String>,
+    pub training_left: u32,
 }
 
 pub const HZ: u32 = 30;
@@ -296,7 +315,8 @@ pub fn load(w: &mut World, text: &str) {
     let kept = parts.next().unwrap_or("").trim();
     let Some((body, wall_then)) = kept.rsplit_once('@') else { return };
     let mut f = body.splitn(3, '|');
-    let (Some(SAVE_PREFIX), Some(then), Some(town)) = (f.next(), f.next(), f.next()) else {
+    // v1 saves (no army) still load; Town::decode reads both.
+    let (Some("v1" | "v2"), Some(then), Some(town)) = (f.next(), f.next(), f.next()) else {
         return;
     };
     let (Ok(then), Ok(wall_then), Some(town)) =
@@ -419,6 +439,24 @@ pub fn command(w: &mut World, cmd: &str) {
             }
         }
         "review" => w.resource_mut::<Town>().review(),
+        "train" => {
+            let Some(t) = Troop::from_key(arg) else { return };
+            let done = w.resource_mut::<Town>().train(t, now);
+            if let Err(why) = done {
+                toast(w, why);
+            }
+        }
+        "untrain" => {
+            if let Ok(i) = arg.parse::<usize>() {
+                let _ = w.resource_mut::<Town>().cancel_training(i, now);
+            }
+        }
+        // Dev-only shortcuts so checks can reach Town Hall 2-3 content.
+        "dev" => match arg {
+            "rich" => w.resource_mut::<Town>().dev_rich(),
+            "th" => w.resource_mut::<Town>().dev_town_hall(now),
+            _ => {}
+        },
         "away" => {
             if let Ok(s) = arg.parse::<u64>() {
                 away(w, s * 1000);
@@ -580,6 +618,15 @@ fn pieces(kind: Kind, level: u8) -> Vec<(&'static str, f32, f32)> {
                 ("flag.model", 1.31 * s + 0.8 * s, s * 0.5),
             ]
         }
+        Kind::Barracks => {
+            let s = 1.9 * grow;
+            vec![("tower-square.model", 0.0, s), ("flag.model", 1.31 * s, s * 0.6)]
+        }
+        Kind::Cannon => vec![("siege-catapult.model", 0.0, 1.15 * grow)],
+        Kind::ArcherTower => {
+            let s = 1.6 * grow;
+            vec![("tower-hexagon-base.model", 0.0, s), ("siege-ballista.model", 1.31 * s, s * 0.7)]
+        }
         Kind::BuilderHut => vec![
             ("tower-hexagon-base.model", 0.0, 1.3),
             ("tower-hexagon-roof.model", 1.31 * 1.3, 1.4),
@@ -617,6 +664,10 @@ fn colour(kind: Kind) -> &'static str {
         Kind::GoldStorage => "#f1c232",
         Kind::ElixirStorage => "#c27ba0",
         Kind::BuilderHut => "#8d6e63",
+        Kind::Barracks => "#9e3b2e",
+        Kind::ArmyCamp => "#7a6a4f",
+        Kind::Cannon => "#555b63",
+        Kind::ArcherTower => "#8a7f72",
     }
 }
 
@@ -856,5 +907,22 @@ pub fn hud(w: &World, now: u64, place_reason: String) -> Hud {
         has_selected: sel.is_some(),
         selected,
         toast: if now < ui.toast_until { ui.toast.clone() } else { String::new() },
+        has_barracks: town.barracks_level() > 0,
+        army: TROOPS
+            .iter()
+            .map(|&t| TrainRow {
+                key: t.key().into(),
+                name: t.name().into(),
+                cost: t.cost(),
+                secs: t.train_secs() as u32,
+                housing: t.housing(),
+                count: town.trained(t),
+                reason: town.can_train(t).err().unwrap_or_default(),
+            })
+            .collect(),
+        housing_used: town.housing_used(),
+        housing_cap: town.housing_cap(),
+        queue: town.queue.iter().map(|t| t.name().to_string()).collect(),
+        training_left: town.training_left(now) as u32,
     }
 }

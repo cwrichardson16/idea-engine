@@ -27,6 +27,11 @@ pub enum Kind {
     GoldStorage,
     ElixirStorage,
     BuilderHut,
+    // Slice 2. New kinds only ever go at the end: saves store a kind's position.
+    Barracks,
+    ArmyCamp,
+    Cannon,
+    ArcherTower,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -35,13 +40,17 @@ pub enum Res {
     Elixir,
 }
 
-pub const KINDS: [Kind; 6] = [
+pub const KINDS: [Kind; 10] = [
     Kind::TownHall,
     Kind::GoldMine,
     Kind::ElixirCollector,
     Kind::GoldStorage,
     Kind::ElixirStorage,
     Kind::BuilderHut,
+    Kind::Barracks,
+    Kind::ArmyCamp,
+    Kind::Cannon,
+    Kind::ArcherTower,
 ];
 
 impl Kind {
@@ -53,6 +62,10 @@ impl Kind {
             Kind::GoldStorage => "goldstorage",
             Kind::ElixirStorage => "elixirstorage",
             Kind::BuilderHut => "builderhut",
+            Kind::Barracks => "barracks",
+            Kind::ArmyCamp => "armycamp",
+            Kind::Cannon => "cannon",
+            Kind::ArcherTower => "archertower",
         }
     }
     pub fn from_key(key: &str) -> Option<Kind> {
@@ -66,12 +79,16 @@ impl Kind {
             Kind::GoldStorage => "Gold Storage",
             Kind::ElixirStorage => "Elixir Storage",
             Kind::BuilderHut => "Builder Hut",
+            Kind::Barracks => "Barracks",
+            Kind::ArmyCamp => "Army Camp",
+            Kind::Cannon => "Cannon",
+            Kind::ArcherTower => "Archer Tower",
         }
     }
     /// Footprint, in tiles per side.
     pub fn size(self) -> i32 {
         match self {
-            Kind::TownHall => 4,
+            Kind::TownHall | Kind::ArmyCamp => 4,
             Kind::BuilderHut => 2,
             _ => 3,
         }
@@ -92,6 +109,10 @@ impl Kind {
             Kind::GoldStorage => (Res::Elixir, [300, 600, 1200][i]),
             Kind::ElixirStorage => (Res::Gold, [300, 600, 1200][i]),
             Kind::BuilderHut => (Res::Gold, [500, 0, 0][i]),
+            Kind::Barracks => (Res::Elixir, [200, 600, 1500][i]),
+            Kind::ArmyCamp => (Res::Elixir, [250, 750, 1500][i]),
+            Kind::Cannon => (Res::Gold, [250, 700, 1500][i]),
+            Kind::ArcherTower => (Res::Gold, [1000, 2000, 3000][i]),
         }
     }
     /// Seconds a builder spends reaching `level`. Zero is instant and needs no builder.
@@ -102,6 +123,9 @@ impl Kind {
             Kind::GoldMine | Kind::ElixirCollector => [10, 30, 60][i],
             Kind::GoldStorage | Kind::ElixirStorage => [15, 40, 80][i],
             Kind::BuilderHut => 0,
+            Kind::Barracks | Kind::ArmyCamp => [20, 60, 120][i],
+            Kind::Cannon => [15, 45, 90][i],
+            Kind::ArcherTower => [60, 120, 180][i],
         }
     }
     /// What a mine or collector makes: (resource, per second, holds).
@@ -141,8 +165,87 @@ impl Kind {
             Kind::TownHall => 1,
             Kind::GoldMine | Kind::ElixirCollector => [1, 2, 3][i],
             Kind::GoldStorage | Kind::ElixirStorage => [1, 1, 2][i],
-            Kind::BuilderHut => 1,
+            Kind::BuilderHut | Kind::Barracks => 1,
+            Kind::ArmyCamp => [1, 1, 2][i],
+            Kind::Cannon => [2, 2, 3][i],
+            Kind::ArcherTower => [0, 1, 2][i],
         }
+    }
+    /// The Town Hall level that first allows one.
+    pub fn unlocks_at(self) -> u8 {
+        (1..=MAX_LEVEL).find(|&th| self.max_count(th) > 0).unwrap_or(MAX_LEVEL)
+    }
+    /// Army camp space at a level.
+    pub fn housing(self, level: u8) -> u32 {
+        match (self, level) {
+            (Kind::ArmyCamp, 1..) => [20, 30, 40][usize::from(level.min(MAX_LEVEL) - 1)],
+            _ => 0,
+        }
+    }
+    pub fn is_defense(self) -> bool {
+        matches!(self, Kind::Cannon | Kind::ArcherTower)
+    }
+}
+
+/// The longest training queue.
+pub const QUEUE_MAX: usize = 10;
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Data)]
+pub enum Troop {
+    #[default]
+    Fighter,
+    Archer,
+    Brute,
+}
+
+pub const TROOPS: [Troop; 3] = [Troop::Fighter, Troop::Archer, Troop::Brute];
+
+impl Troop {
+    pub fn key(self) -> &'static str {
+        match self {
+            Troop::Fighter => "fighter",
+            Troop::Archer => "archer",
+            Troop::Brute => "brute",
+        }
+    }
+    pub fn from_key(key: &str) -> Option<Troop> {
+        TROOPS.into_iter().find(|t| t.key() == key)
+    }
+    pub fn name(self) -> &'static str {
+        match self {
+            Troop::Fighter => "Fighter",
+            Troop::Archer => "Archer",
+            Troop::Brute => "Brute",
+        }
+    }
+    pub fn index(self) -> usize {
+        self as usize
+    }
+    /// Army camp space one takes.
+    pub fn housing(self) -> u32 {
+        match self {
+            Troop::Brute => 5,
+            _ => 1,
+        }
+    }
+    /// Elixir to train one.
+    pub fn cost(self) -> u32 {
+        match self {
+            Troop::Fighter => 25,
+            Troop::Archer => 50,
+            Troop::Brute => 250,
+        }
+    }
+    pub fn train_secs(self) -> u64 {
+        match self {
+            Troop::Fighter => 5,
+            Troop::Archer => 8,
+            Troop::Brute => 20,
+        }
+    }
+    /// The barracks level that unlocks it.
+    pub fn barracks_level(self) -> u8 {
+        self.index() as u8 + 1
     }
 }
 
@@ -192,7 +295,7 @@ impl Building {
     }
 }
 
-#[derive(Default, Resource)]
+#[derive(Clone, Debug, Default, PartialEq, Resource)]
 pub struct Town {
     pub gold: u32,
     pub elixir: u32,
@@ -200,6 +303,12 @@ pub struct Town {
     pub knowledge: u32,
     pub buildings: Vec<Building>,
     pub next_id: u32,
+    /// Trained troops, counted per `TROOPS` index.
+    pub army: Vec<u32>,
+    /// Troops waiting to train, the first one training.
+    pub queue: Vec<Troop>,
+    /// When the first troop in the queue started training; 0 when the queue is empty.
+    pub queue_start: u64,
 }
 
 /// How a timer gets skipped.
@@ -228,6 +337,116 @@ impl Town {
                 ..Building::default()
             }],
             next_id: 2,
+            army: vec![0; TROOPS.len()],
+            queue: Vec::new(),
+            queue_start: 0,
+        }
+    }
+
+    /// The highest finished barracks level (0 without one).
+    pub fn barracks_level(&self) -> u8 {
+        self.buildings
+            .iter()
+            .filter(|b| b.kind == Kind::Barracks)
+            .map(|b| b.level)
+            .max()
+            .unwrap_or(0)
+    }
+    /// Army camp space from finished camps.
+    pub fn housing_cap(&self) -> u32 {
+        self.buildings.iter().map(|b| b.kind.housing(b.level)).sum()
+    }
+    /// Space taken by trained AND queued troops.
+    pub fn housing_used(&self) -> u32 {
+        let trained: u32 = TROOPS.iter().map(|t| self.trained(*t) * t.housing()).sum();
+        trained + self.queue.iter().map(|t| t.housing()).sum::<u32>()
+    }
+    pub fn trained(&self, t: Troop) -> u32 {
+        self.army.get(t.index()).copied().unwrap_or(0)
+    }
+    /// Why `t` can't be queued now.
+    pub fn can_train(&self, t: Troop) -> Result<(), String> {
+        let have = self.barracks_level();
+        if have == 0 {
+            return Err("Build a Barracks".into());
+        }
+        if have < t.barracks_level() {
+            return Err(format!("Needs Barracks level {}", t.barracks_level()));
+        }
+        if self.queue.len() >= QUEUE_MAX {
+            return Err("Queue full".into());
+        }
+        if self.housing_used() + t.housing() > self.housing_cap() {
+            return Err("Army camps full".into());
+        }
+        self.afford(Res::Elixir, t.cost())
+    }
+    pub fn train(&mut self, t: Troop, now: u64) -> Result<(), String> {
+        self.can_train(t)?;
+        self.spend(Res::Elixir, t.cost());
+        if self.queue.is_empty() {
+            self.queue_start = now;
+        }
+        self.queue.push(t);
+        Ok(())
+    }
+    /// Takes queued troop `i` out and refunds it in full. Cancelling the one
+    /// in training restarts the next from now.
+    pub fn cancel_training(&mut self, i: usize, now: u64) -> Result<(), String> {
+        if i >= self.queue.len() {
+            return Err("Nothing to cancel".into());
+        }
+        let t = self.queue.remove(i);
+        self.earn_refund(t.cost());
+        if i == 0 {
+            self.queue_start = if self.queue.is_empty() { 0 } else { now };
+        }
+        Ok(())
+    }
+    /// A refund always comes back in full, even over the cap.
+    fn earn_refund(&mut self, n: u32) {
+        self.elixir = self.elixir.saturating_add(n);
+    }
+    /// Seconds until the troop in training is ready (rounded up), if any.
+    pub fn training_left(&self, now: u64) -> u64 {
+        match self.queue.first() {
+            Some(t) => (self.queue_start + t.train_secs() * 1000).saturating_sub(now).div_ceil(1000),
+            None => 0,
+        }
+    }
+    /// Moves every troop whose training ended by `now` into the army.
+    pub fn settle_training(&mut self, now: u64) {
+        while let Some(&t) = self.queue.first() {
+            let done = self.queue_start + t.train_secs() * 1000;
+            if done > now {
+                break;
+            }
+            self.queue.remove(0);
+            self.army[t.index()] += 1;
+            self.queue_start = if self.queue.is_empty() { 0 } else { done };
+        }
+    }
+    /// Takes `n` of a trained troop out of the army (they go to battle).
+    pub fn take_troops(&mut self, t: Troop, n: u32) -> u32 {
+        let have = self.trained(t);
+        let took = n.min(have);
+        self.army[t.index()] = have - took;
+        took
+    }
+    /// Dev only: fill both storages.
+    pub fn dev_rich(&mut self) {
+        let (gc, ec) = self.caps();
+        self.gold = gc;
+        self.elixir = ec;
+    }
+    /// Dev only: raise the Town Hall one level, instantly.
+    pub fn dev_town_hall(&mut self, now: u64) {
+        if let Some(i) = self.buildings.iter().position(|b| b.kind == Kind::TownHall) {
+            let b = &mut self.buildings[i];
+            if !b.busy() && b.level < MAX_LEVEL {
+                b.level += 1;
+                b.mark = now;
+            }
         }
     }
 
@@ -406,6 +625,7 @@ impl Town {
 
     /// Finishes every timer due by `now`, in the order they end. Returns how many finished.
     pub fn settle(&mut self, now: u64) -> usize {
+        self.settle_training(now);
         let mut finished = 0;
         loop {
             let next = self
@@ -506,11 +726,38 @@ impl Town {
                 b.id, kind, b.level, b.x, b.z, b.done_at, b.started_at, b.banked_milli, b.mark
             );
         }
+        // Since v2: "#army counts,queue_start#queued troop indexes".
+        let army: Vec<String> = self.army.iter().map(|n| n.to_string()).collect();
+        let queue: Vec<String> = self.queue.iter().map(|t| t.index().to_string()).collect();
+        out += &format!("#{},{}#{}", army.join(","), self.queue_start, queue.join(","));
         out
     }
 
     /// Reads `encode`'s text back; None if it isn't a village.
     pub fn decode(text: &str) -> Option<Town> {
+        // A v1 village has no army part.
+        let mut sections = text.split('#');
+        let text = sections.next()?;
+        let (army, queue_start, queue) = match (sections.next(), sections.next(), sections.next()) {
+            (None, None, None) => (vec![0; TROOPS.len()], 0, Vec::new()),
+            (Some(a), Some(q), None) => {
+                let nums: Vec<u64> = a.split(',').map(|n| n.parse().ok()).collect::<Option<_>>()?;
+                let (start, counts) = nums.split_last()?;
+                if counts.len() != TROOPS.len() {
+                    return None;
+                }
+                let army = counts.iter().map(|&n| u32::try_from(n).ok()).collect::<Option<Vec<u32>>>()?;
+                let queue = if q.is_empty() {
+                    Vec::new()
+                } else {
+                    q.split(',')
+                        .map(|n| n.parse::<usize>().ok().and_then(|i| TROOPS.get(i).copied()))
+                        .collect::<Option<Vec<Troop>>>()?
+                };
+                (army, *start, queue)
+            }
+            _ => return None,
+        };
         let mut parts = text.split(';');
         let head: Vec<u32> = parts
             .next()?
@@ -545,6 +792,9 @@ impl Town {
             knowledge,
             buildings,
             next_id,
+            army,
+            queue,
+            queue_start,
         };
         town.valid().then_some(town)
     }
@@ -584,6 +834,9 @@ impl Town {
             && grid_ok
             && banked_ok
             && self.builders_busy() <= self.builders()
+            && self.army.len() == TROOPS.len()
+            && self.queue.len() <= QUEUE_MAX
+            && self.housing_used() <= self.housing_cap()
             && self.next_id < u32::MAX
             && self.gold <= gc.max(START_GOLD)
             && self.elixir <= ec.max(START_ELIXIR)
