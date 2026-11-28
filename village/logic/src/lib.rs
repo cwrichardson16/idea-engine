@@ -500,6 +500,9 @@ pub fn command(w: &mut World, cmd: &str) {
     if let Some(rest) = cmd.strip_prefix("cred ") {
         return cloud::set_cred(w, rest);
     }
+    if let Some(text) = cmd.strip_prefix("bug ") {
+        return cloud::report_bug(w, text);
+    }
     if cmd == "restorecode" {
         return cloud::ask_code(w);
     }

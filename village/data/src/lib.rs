@@ -33,6 +33,10 @@ pub fn request(ask: &str) -> Option<(u64, String, String, Json)> {
             json!({ "email": args.first()?, "password": args.get(1)? }),
         ),
         "state" => ("/rest/v1/rpc/get_state".to_string(), json!({})),
+        "bug" => (
+            "/rest/v1/bug_reports".to_string(),
+            json!({ "text": args.first()?, "save": args.get(1).copied().unwrap_or("") }),
+        ),
         "mkcode" => ("/functions/v1/restore".to_string(), json!({ "action": "make" })),
         "claim" => ("/functions/v1/restore".to_string(), json!({ "action": "claim", "code": args.first()? })),
         "save" => {
@@ -62,6 +66,10 @@ pub fn normalize(id: u64, kind: &str, status: u16, body: &[u8]) -> String {
     if status == 401 || status == 403 {
         return format!("{id}\tauth");
     }
+    // A table insert answers 201 with no body.
+    if kind == "bug" && (200..300).contains(&status) {
+        return format!("{id}\tok");
+    }
     let Ok(j) = serde_json::from_slice::<Json>(body) else {
         return format!("{id}\terror\tHTTP {status}");
     };
@@ -71,7 +79,7 @@ pub fn normalize(id: u64, kind: &str, status: u16, body: &[u8]) -> String {
             return format!("{id}\tauth");
         }
         let why = j["error"].as_str().or(j["msg"].as_str()).or(j["message"].as_str()).unwrap_or("error");
-        if kind == "claim" || kind == "mkcode" {
+        if kind == "claim" || kind == "mkcode" || kind == "bug" {
             // Shown to the player as is ("no account has that code").
             return format!("{id}\terror\t{}", clean(why));
         }
@@ -198,6 +206,9 @@ mod tests {
         assert_eq!(normalize(4, "signin", 400, br#"{"error":"invalid_grant"}"#), "4\tauth");
         assert_eq!(normalize(4, "state", 401, b""), "4\tauth");
         assert_eq!(normalize(5, "join", 200, br#"{"email":"a@b","password":"p"}"#), "5\tok\ta@b\tp");
+        assert_eq!(normalize(9, "bug", 201, b""), "9\tok");
+        let (_, path, _, body) = request("9\tbug\ttok\tit froze\tv2|1|x").unwrap();
+        assert_eq!((path.as_str(), body["text"].as_str(), body["save"].as_str()), ("/rest/v1/bug_reports", Some("it froze"), Some("v2|1|x")));
         assert_eq!(normalize(6, "mkcode", 200, br#"{"code":"ABCD2345"}"#), "6\tok\tABCD2345");
         assert_eq!(normalize(7, "claim", 404, br#"{"error":"no account has that code"}"#), "7\terror\tno account has that code");
         assert_eq!(normalize(7, "claim", 200, br#"{"email":"a@b","password":"q/+="}"#), "7\tok\ta@b\tq/+=");

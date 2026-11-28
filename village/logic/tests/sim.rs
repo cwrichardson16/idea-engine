@@ -1103,3 +1103,21 @@ fn a_device_whose_village_moved_stops_saving_and_never_makes_a_copy() {
     sim.run(100.0);
     assert!(ask(&sim).starts_with("5\tclaim"));
 }
+
+#[test]
+fn a_bug_report_goes_up_with_the_save_and_waits_for_sign_in() {
+    let mut sim = Sim::<Village>::new(Options::default()).unwrap();
+    net(&mut sim, "");
+    sim.post("cred p@players.invalid pw");
+    sim.post("load 1795850000000 ");
+    sim.run(100.0);
+    sim.post("bug the\tshop froze");
+    net(&mut sim, "1\tok\tTOKEN");
+    let up = ask(&sim);
+    assert!(up.starts_with("2\tbug\tTOKEN\tthe shop froze\tv2|"), "{up:?}");
+    net(&mut sim, "2\toffline");
+    sim.run(16_000.0);
+    assert!(ask(&sim).starts_with("3\tbug\tTOKEN\tthe shop froze"));
+    net(&mut sim, "3\tok");
+    assert_eq!(sim.world().resource::<Ui>().toast, "Thanks! Bug report sent");
+}

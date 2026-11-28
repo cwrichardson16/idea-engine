@@ -64,6 +64,9 @@ pub struct Cloud {
     pub code: String,
     pub claim: String,
     pub want_code: bool,
+    /// A bug report waiting to go (sent once signed in), and the one out now.
+    pub bug: String,
+    pub bug_sending: String,
 }
 
 const RETRY_MS: u64 = 15_000;
@@ -130,6 +133,12 @@ pub fn step(w: &mut World, net: &str) {
         c.send("claim", "", &[&code]);
         return;
     }
+    if !c.bug.is_empty() && !c.token.is_empty() {
+        let (t, text, save) = (c.token.clone(), std::mem::take(&mut c.bug), c.dirty.clone());
+        c.bug_sending = text.clone();
+        c.send("bug", &t, &[&text, &save]);
+        return;
+    }
     if c.want_code && !c.token.is_empty() {
         c.want_code = false;
         let t = c.token.clone();
@@ -189,6 +198,9 @@ fn answer(w: &mut World, line: &str, now: u64) {
         let mut c = w.resource_mut::<Cloud>();
         c.pending = 0;
         c.ask.clear();
+    }
+    if kind == "bug" {
+        return bug_answer(w, what, &rest);
     }
     if kind == "mkcode" || kind == "claim" {
         return restore_answer(w, &kind, what, &rest);
@@ -251,6 +263,36 @@ fn answer(w: &mut World, line: &str, now: u64) {
             c.status = "☁️ loading your newer save".into();
         }
         _ => {}
+    }
+}
+
+/// `bug <text>`: send a bug report (with this device's save) once signed in.
+pub fn report_bug(w: &mut World, text: &str) {
+    let text: String = text.replace(['\t', '\n', '\r'], " ").trim().chars().take(2000).collect();
+    if text.is_empty() {
+        return toast(w, "Say what went wrong first");
+    }
+    w.resource_mut::<Cloud>().bug = text;
+    toast(w, "Sending your bug report…");
+}
+
+fn bug_answer(w: &mut World, what: &str, rest: &[&str]) {
+    let text = std::mem::take(&mut w.resource_mut::<Cloud>().bug_sending);
+    match what {
+        "ok" => toast(w, "Thanks! Bug report sent"),
+        "auth" | "offline" => {
+            // Keep it and send it after signing in again / reconnecting.
+            let now = now_ms(w);
+            let mut c = w.resource_mut::<Cloud>();
+            c.bug = text;
+            if what == "auth" {
+                c.token.clear();
+                c.step = Step::SignIn;
+            } else {
+                c.wait_until = now + RETRY_MS;
+            }
+        }
+        _ => toast(w, format!("Couldn't send the report: {}", rest.first().unwrap_or(&"error"))),
     }
 }
 
