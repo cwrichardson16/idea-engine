@@ -16,6 +16,31 @@ pub struct Fight {
     pub result: Option<RaidResult>,
     /// Drawn troops, one per battle unit.
     pub units: Vec<Entity>,
+    /// What each drawn Spearman is playing (`Act`), and where it stood last draw.
+    pub acts: Vec<(Act, i64, i64)>,
+}
+
+/// A Spearman's clip: walking to its target, swinging at it, or fallen.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Data)]
+pub enum Act {
+    #[default]
+    Idle,
+    Walk,
+    Attack,
+    Dead,
+}
+
+/// The Spearman's model and its scale (the KayKit Knight is about 2.4 m tall).
+pub const SPEARMAN_MODEL: &str = "knight.model";
+const SPEARMAN_SCALE: f32 = 0.42;
+
+fn clip(act: Act) -> Animation {
+    match act {
+        Act::Idle => Animation::play("Idle"),
+        Act::Walk => Animation::play("Walking_A").speed(1.2),
+        Act::Attack => Animation::play("1H_Melee_Attack_Stab"),
+        Act::Dead => Animation::play("Death_A").once(),
+    }
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Data)]
@@ -146,27 +171,82 @@ fn troop_colour(t: Troop) -> &'static str {
     }
 }
 
-/// Draws the raid's troops: a capsule each, nudged apart by index so a
-/// crowd hitting one building doesn't look like one blob. Fallen troops sink.
+/// Draws the raid's troops. The Spearman is the animated KayKit Knight
+/// (walk, stab, die); the others are still a capsule each, nudged apart by
+/// index so a crowd hitting one building doesn't look like one blob, and
+/// sink when they fall. Call `animation::step` after this.
 pub fn draw_units(w: &mut World) {
-    let units: Vec<(Troop, i64, i64, bool)> = match &w.resource::<Fight>().battle {
-        Some(b) => b.units.iter().map(|u| (u.troop, u.x, u.z, u.alive())).collect(),
+    let half = GRID as f32 / 2.0;
+    let units: Vec<(Troop, i64, i64, bool, Option<(f32, f32)>)> = match &w.resource::<Fight>().battle {
+        Some(b) => b
+            .units
+            .iter()
+            .map(|u| {
+                let aim = u.target.map(|t| {
+                    let (cx, cz) = b.targets[t as usize].centre();
+                    (cx as f32 / MILLI as f32 - half, cz as f32 / MILLI as f32 - half)
+                });
+                (u.troop, u.x, u.z, u.alive(), aim)
+            })
+            .collect(),
         None => Vec::new(),
     };
     let mut drawn = std::mem::take(&mut w.resource_mut::<Fight>().units);
+    let mut acts = std::mem::take(&mut w.resource_mut::<Fight>().acts);
     while drawn.len() > units.len() {
         let e = drawn.pop().unwrap();
         w.despawn(e);
     }
-    let half = GRID as f32 / 2.0;
-    for (i, (troop, x, z, alive)) in units.into_iter().enumerate() {
-        let size = if troop == Troop::Brute { 0.95 } else { 0.6 };
+    acts.truncate(units.len());
+    for (i, (troop, x, z, alive, aim)) in units.into_iter().enumerate() {
         let (ox, oz) = ((i * 7 % 5) as f32 * 0.12 - 0.24, (i * 3 % 7) as f32 * 0.08 - 0.24);
-        let pos = Vec3::new(
-            x as f32 / MILLI as f32 - half + ox,
-            if alive { size + 0.05 } else { -3.0 },
-            z as f32 / MILLI as f32 - half + oz,
-        );
+        let (px, pz) = (x as f32 / MILLI as f32 - half + ox, z as f32 / MILLI as f32 - half + oz);
+        if troop == Troop::Fighter {
+            let (act, was_x, was_z) = acts.get(i).copied().unwrap_or((Act::Idle, x, z));
+            let now = if !alive {
+                Act::Dead
+            } else if (x, z) != (was_x, was_z) {
+                Act::Walk
+            } else if aim.is_some() {
+                Act::Attack
+            } else if act == Act::Walk {
+                Act::Idle
+            } else {
+                act
+            };
+            // Face the target (the model looks down +Z); the fallen keep their facing.
+            let yaw = match aim {
+                Some((ax, az)) if alive => Some(exact_game::math::atan2(ax - px, az - pz)),
+                _ => None,
+            };
+            if i >= drawn.len() {
+                let mut t = Transform::at(px, 0.2, pz).with_scale(SPEARMAN_SCALE);
+                if let Some(yaw) = yaw {
+                    t.rotation = Quat::from_rotation_y(yaw);
+                }
+                drawn.push(w.spawn((t, Mesh::asset(SPEARMAN_MODEL), clip(now))));
+            } else {
+                let e = drawn[i];
+                let mut t = w.get_mut::<Transform>(e).unwrap();
+                t.position = Vec3::new(px, 0.2, pz);
+                if let Some(yaw) = yaw {
+                    t.rotation = Quat::from_rotation_y(yaw);
+                }
+                drop(t);
+                if now != act {
+                    w.insert(e, clip(now));
+                }
+            }
+            let entry = (now, x, z);
+            if i < acts.len() {
+                acts[i] = entry;
+            } else {
+                acts.push(entry);
+            }
+            continue;
+        }
+        let size = if troop == Troop::Brute { 0.95 } else { 0.6 };
+        let pos = Vec3::new(px, if alive { size + 0.05 } else { -3.0 }, pz);
         if i >= drawn.len() {
             let e = w.spawn((
                 Transform::at(pos.x, pos.y, pos.z),
@@ -177,6 +257,11 @@ pub fn draw_units(w: &mut World) {
         } else {
             w.get_mut::<Transform>(drawn[i]).unwrap().position = pos;
         }
+        if i >= acts.len() {
+            acts.push((Act::Idle, x, z));
+        }
     }
-    w.resource_mut::<Fight>().units = drawn;
+    let mut f = w.resource_mut::<Fight>();
+    f.units = drawn;
+    f.acts = acts;
 }

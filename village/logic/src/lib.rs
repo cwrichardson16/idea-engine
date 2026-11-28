@@ -314,6 +314,7 @@ impl Game for Village {
     const ID: &'static str = "village";
     const HZ: u32 = HZ;
     const STREAMED: &'static [&'static str] = MODELS;
+    const ASSETS: &'static [&'static str] = ANIMATED;
     type Args = Options;
 
     fn restorable(saved: &World) -> Result<(), String> {
@@ -878,43 +879,50 @@ fn centre(x: i32, z: i32, size: i32) -> (f32, f32) {
     )
 }
 
-/// Kenney Castle Kit models (CC0, see art/LICENSE-kenney-castle-kit.txt).
+/// Kenney Castle Kit models (CC0, see art/LICENSE-kenney-castle-kit.txt) and
+/// KayKit Medieval Hexagon buildings (CC0, art/LICENSE-kaykit-medieval-hexagon.txt):
+/// blue for the player, red for camps. Streamed: nothing a tick reads.
 pub const MODELS: &[&str] = &[
     "tower-square.model",
     "tower-hexagon-base.model",
     "tower-hexagon-roof.model",
-    "siege-ballista.model",
     "siege-catapult.model",
     "tree-large.model",
     "tree-small.model",
     "rocks-large.model",
     "rocks-small.model",
     "flag.model",
+    "building_castle_blue.model",
+    "building_mine_blue.model",
+    "building_tower_B_blue.model",
+    "building_castle_red.model",
+    "building_mine_red.model",
+    "building_tower_B_red.model",
 ];
+
+/// Models a tick animates, so setup waits for them (`Game::ASSETS`): the
+/// KayKit Knight (CC0, art/LICENSE-kaykit-adventurers.txt), drawn as the
+/// Spearman, with its clips stripped to `KNIGHT_CLIPS` by tools/import_kaykit.py.
+pub const ANIMATED: &[&str] = &["knight.model"];
+pub const KNIGHT_CLIPS: &[&str] = &["Idle", "Walking_A", "1H_Melee_Attack_Stab", "Hit_A", "Death_A"];
 
 /// The model pieces for a kind: (model, height of its base above the stone
 /// slab, scale). The models are about one tile wide with their origin at the
 /// bottom centre. An empty list means the kind is drawn with plain shapes.
-fn pieces(kind: Kind, level: u8) -> Vec<(&'static str, f32, f32)> {
+fn pieces(kind: Kind, level: u8, enemy: bool) -> Vec<(&'static str, f32, f32)> {
     let grow = 0.85 + 0.15 * f32::from(level.max(1));
+    // KayKit buildings are about 2 m across at scale 1; they grow less per level.
+    let kk = 0.9 + 0.05 * f32::from(level.max(1));
+    let team = |blue: &'static str, red: &'static str| if enemy { red } else { blue };
     match kind {
-        Kind::TownHall => {
-            let s = 2.7 * grow;
-            vec![
-                ("tower-square.model", 0.0, s),
-                ("tower-hexagon-roof.model", 1.31 * s, s * 1.05),
-                ("flag.model", 1.31 * s + 0.8 * s, s * 0.5),
-            ]
-        }
+        Kind::TownHall => vec![(team("building_castle_blue.model", "building_castle_red.model"), 0.0, 1.55 * kk)],
+        Kind::GoldMine => vec![(team("building_mine_blue.model", "building_mine_red.model"), 0.0, 1.55 * kk)],
+        Kind::ArcherTower => vec![(team("building_tower_B_blue.model", "building_tower_B_red.model"), 0.0, 1.9 * kk)],
         Kind::Barracks => {
             let s = 1.9 * grow;
             vec![("tower-square.model", 0.0, s), ("flag.model", 1.31 * s, s * 0.6)]
         }
         Kind::Cannon => vec![("siege-catapult.model", 0.0, 1.15 * grow)],
-        Kind::ArcherTower => {
-            let s = 1.6 * grow;
-            vec![("tower-hexagon-base.model", 0.0, s), ("siege-ballista.model", 1.31 * s, s * 0.7)]
-        }
         Kind::BuilderHut => vec![
             ("tower-hexagon-base.model", 0.0, 1.3),
             ("tower-hexagon-roof.model", 1.31 * 1.3, 1.4),
@@ -962,7 +970,7 @@ fn colour(kind: Kind) -> &'static str {
 /// Spawns one building's parts: a stone base, a body that grows with level,
 /// a roof, a yellow scaffold cap while builders work, and a glowing bubble
 /// when there's plenty to collect.
-fn spawn_building(w: &mut World, kind: Kind, x: i32, z: i32, level: u8, busy: bool, ready: bool, ghost: Option<bool>) -> Vec<Entity> {
+fn spawn_building(w: &mut World, kind: Kind, x: i32, z: i32, level: u8, busy: bool, ready: bool, ghost: Option<bool>, enemy: bool) -> Vec<Entity> {
     let s = kind.size() as f32;
     let (cx, cz) = centre(x, z, kind.size());
     let mut parts = Vec::new();
@@ -979,7 +987,7 @@ fn spawn_building(w: &mut World, kind: Kind, x: i32, z: i32, level: u8, busy: bo
         Material::hex(&tint("#7f7f7f")),
     )));
     // Finished buildings with a model draw it; ghosts and first builds keep plain shapes.
-    let models = if ghost.is_none() && level > 0 { pieces(kind, level) } else { Vec::new() };
+    let models = if ghost.is_none() && level > 0 { pieces(kind, level, enemy) } else { Vec::new() };
     if !models.is_empty() {
         for (name, y, k) in models {
             parts.push(w.spawn((Transform::at(cx, 0.2 + y, cz).with_scale(k), Mesh::asset(name))));
@@ -1095,7 +1103,7 @@ fn draw(w: &mut World) {
             let (cx, cz) = centre(x, z, kind.size());
             let s = kind.size() as f32;
             let mut parts = if ready {
-                spawn_building(w, kind, x, z, level, false, false, None)
+                spawn_building(w, kind, x, z, level, false, false, None, true)
             } else {
                 vec![w.spawn((
                     Transform::at(cx, 0.15, cz),
@@ -1110,7 +1118,7 @@ fn draw(w: &mut World) {
             )));
             parts
         } else {
-            spawn_building(w, kind, x, z, level, busy, ready, None)
+            spawn_building(w, kind, x, z, level, busy, ready, None, false)
         };
         if id == selected {
             let (cx, cz) = centre(x, z, kind.size());
@@ -1139,7 +1147,7 @@ fn draw(w: &mut World) {
         let ghost = match Kind::from_key(&placing) {
             Some(kind) => {
                 let fits = place_reason.is_empty();
-                let mut parts = spawn_building(w, kind, gx, gz, 1, false, false, Some(fits));
+                let mut parts = spawn_building(w, kind, gx, gz, 1, false, false, Some(fits), false);
                 // Its footprint on the ground, always visible.
                 let (cx, cz) = centre(gx, gz, kind.size());
                 let s = kind.size() as f32;
@@ -1162,6 +1170,7 @@ fn draw(w: &mut World) {
     }
 
     fight::draw_units(w);
+    animation::step(w);
 
     // The HUD.
     let hud = hud(w, now, place_reason);
