@@ -158,7 +158,7 @@ pub fn draw_units(w: &mut World) {
     }
     let half = GRID as f32 / 2.0;
     for (i, (troop, x, z, alive)) in units.into_iter().enumerate() {
-        let size = if troop == Troop::Brute { 0.55 } else { 0.3 };
+        let size = if troop == Troop::Brute { 0.95 } else { 0.6 };
         let (ox, oz) = ((i * 7 % 5) as f32 * 0.12 - 0.24, (i * 3 % 7) as f32 * 0.08 - 0.24);
         let pos = Vec3::new(
             x as f32 / MILLI as f32 - half + ox,
