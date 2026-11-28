@@ -58,4 +58,6 @@ See SPEC.md "Choices made" and V1.md §4.
 - Plan: LOOK-PLAN.md (diamond camera, screen-space drag, grid only while placing, chunky HUD; KayKit swap after Phase B).
 - Done, uncommitted: tools/add_outline.py ran on art/*.glb (ink outlines + rim), brighter sky/grass/sun, far fog, dirt rim. test-rust 36 pass.
 - The red "save refused: assets are not ready" box is the dev hot-swap only (snapshot refused while models load). Not a player bug.
-- Skeptic reviewing LOOK-PLAN.md; then build steps 1-4, Chrome check, commit, then back to Phase A step 2 (army Chrome check) and Phase B.
+- DONE a72df70 (pushed): steps 1-4. Skeptic caught drag lag + camera framing; fixed (35° lens, 60 m, grab-point drag incl. one-tick drags). 38 tests. Chrome: diamond view, drag, zoom, place shows grid / hides after, barracks placed.
+- Known: mines/storages/army camp are still plain boxes (no outlines) until the KayKit swap after Phase B. Dev hot-swap overlay logged as engine feedback (not sent).
+- Next: Phase A step 2 army Chrome check (barracks now building), test web, Phase A verifier, then Phase B.
