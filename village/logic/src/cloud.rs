@@ -256,6 +256,9 @@ fn answer(w: &mut World, line: &str, now: u64) {
 
 /// `restorecode`: ask the server for this account's one-time code.
 pub fn ask_code(w: &mut World) {
+    if w.resource::<Cloud>().step == Step::Moved {
+        return toast(w, "This village moved to another device: type its code here to play it");
+    }
     let mut c = w.resource_mut::<Cloud>();
     c.want_code = true;
     c.code.clear();
