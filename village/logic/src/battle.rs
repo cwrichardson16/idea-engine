@@ -2,13 +2,13 @@
 //! same drops always give the same fight and tests can replay it. Positions
 //! are in thousandths of a tile; time is in ticks of the village's 30 Hz.
 
-use crate::economy::{Kind, Troop, GRID, TROOPS};
+use crate::economy::{Kind, Town, Troop, GRID, TROOPS};
 use exact_game::*;
 
 /// Ticks per second (the village's HZ).
 pub const TPS: u32 = 30;
-/// A battle lasts three minutes.
-pub const BATTLE_TICKS: u32 = 180 * TPS;
+/// A battle lasts two and a half minutes.
+pub const BATTLE_TICKS: u32 = 150 * TPS;
 /// A thousandth of a tile.
 pub const MILLI: i64 = 1000;
 
@@ -27,10 +27,12 @@ const fn p(kind: Kind, level: u8, x: i32, z: i32, gold: u32, elixir: u32) -> Pla
     Plan { kind, level, x, z, gold, elixir }
 }
 
-/// The goblin campaign: four hand-made camps, easiest first.
+/// The campaign: four rival hospitals to raid, easiest first. A camp is the
+/// same list of placed buildings a player's village becomes (`plans_from_town`),
+/// so raiding another player later is the same battle.
 pub const CAMPS: [(&str, &[Plan]); 4] = [
     (
-        "Goblin Hamlet",
+        "Free Clinic",
         &[
             p(Kind::TownHall, 1, 13, 13, 100, 100),
             p(Kind::GoldMine, 1, 8, 13, 150, 0),
@@ -40,7 +42,7 @@ pub const CAMPS: [(&str, &[Plan]); 4] = [
         ],
     ),
     (
-        "Goblin Gulch",
+        "Urgent Care",
         &[
             p(Kind::TownHall, 1, 13, 13, 150, 150),
             p(Kind::Cannon, 1, 13, 9, 0, 0),
@@ -51,7 +53,7 @@ pub const CAMPS: [(&str, &[Plan]); 4] = [
         ],
     ),
     (
-        "Goblin Keep",
+        "Community Hospital",
         &[
             p(Kind::TownHall, 2, 13, 13, 200, 200),
             p(Kind::Cannon, 1, 9, 9, 0, 0),
@@ -64,7 +66,7 @@ pub const CAMPS: [(&str, &[Plan]); 4] = [
         ],
     ),
     (
-        "Goblin Fortress",
+        "Mega Medical Center",
         &[
             p(Kind::TownHall, 3, 13, 13, 300, 300),
             p(Kind::Cannon, 2, 9, 9, 0, 0),
@@ -94,8 +96,9 @@ pub fn building_hp(kind: Kind) -> i32 {
 pub fn defense(kind: Kind, level: u8) -> Option<(i64, i32, u32)> {
     let i = usize::from(level.clamp(1, 3) - 1);
     match kind {
-        Kind::Cannon => Some((7 * MILLI, [9, 12, 16][i], 24)),
-        Kind::ArcherTower => Some((8 * MILLI, [6, 8, 10][i], 15)),
+        // Every 0.9 s and every 0.45 s.
+        Kind::Cannon => Some((7 * MILLI + 500, [10, 14, 18][i], 27)),
+        Kind::ArcherTower => Some((8 * MILLI + 500, [5, 7, 9][i], 14)),
         _ => None,
     }
 }
@@ -103,11 +106,11 @@ pub fn defense(kind: Kind, level: u8) -> Option<(i64, i32, u32)> {
 /// A troop's (hit points, damage per hit, ticks between hits, milli-tiles per tick, reach in milli-tiles).
 pub fn stats(t: Troop) -> (i32, i32, u32, i64, i64) {
     match t {
-        // 8 damage a second, 1.6 tiles a second.
-        Troop::Fighter => (45, 8, TPS, 53, 600),
-        Troop::Archer => (20, 7, TPS, 53, 3500),
-        // 11 damage a second, 1 tile a second.
-        Troop::Brute => (300, 11, TPS, 33, 600),
+        // 9 damage a second, 1.5 tiles a second.
+        Troop::Fighter => (55, 9, TPS, 50, 700),
+        Troop::Archer => (24, 8, TPS, 50, 4000),
+        // 12 damage a second, 0.9 tiles a second.
+        Troop::Brute => (360, 12, TPS, 30, 700),
     }
 }
 
@@ -147,7 +150,8 @@ pub struct Unit {
     pub x: i64,
     pub z: i64,
     pub hp: i32,
-    pub target: Option<usize>,
+    /// Index into the battle's targets.
+    pub target: Option<u32>,
     pub cooldown: u32,
 }
 
@@ -167,7 +171,7 @@ pub enum End {
 
 #[derive(Clone, Debug, Default, PartialEq, Data)]
 pub struct Battle {
-    pub camp: usize,
+    pub camp: u32,
     pub targets: Vec<Target>,
     pub units: Vec<Unit>,
     pub tick: u32,
@@ -189,6 +193,11 @@ impl Battle {
     /// buildings (by index in the camp plan) already looted on earlier raids.
     pub fn new(camp: usize, reserve: Vec<u32>, looted: u32) -> Battle {
         let plan = CAMPS[camp.min(CAMPS.len() - 1)].1;
+        Battle { camp: camp as u32, ..Battle::on(plan, reserve, looted) }
+    }
+
+    /// A battle against any layout (a campaign camp or a player's village).
+    pub fn on(plan: &[Plan], reserve: Vec<u32>, looted: u32) -> Battle {
         let targets = plan
             .iter()
             .enumerate()
@@ -208,7 +217,7 @@ impl Battle {
                 }
             })
             .collect();
-        Battle { camp, targets, reserve, ..Battle::default() }
+        Battle { targets, reserve, ..Battle::default() }
     }
 
     pub fn ticks_left(&self) -> u32 {
@@ -265,7 +274,7 @@ impl Battle {
         self.can_deploy(t, x, z)?;
         self.reserve[t.index()] -= 1;
         let n = i64::from(self.deployed);
-        let (dx, dz) = ((n * 7 % 5 - 2) * 150, (n * 3 % 5 - 2) * 150);
+        let (dx, dz) = ((n % 5 - 2) * 150, (n / 5 % 5 - 2) * 150);
         let (hp, ..) = stats(t);
         self.units.push(Unit {
             troop: t,
@@ -305,25 +314,29 @@ impl Battle {
             if !self.units[i].alive() {
                 continue;
             }
-            let still = self.units[i].target.filter(|&t| self.targets[t].alive());
+            let still = self.units[i].target.map(|t| t as usize).filter(|&t| self.targets[t].alive());
             let target = match still {
                 Some(t) => Some(t),
                 None => self.pick(&self.units[i]),
             };
-            self.units[i].target = target;
+            self.units[i].target = target.map(|t| t as u32);
             let Some(ti) = target else { continue };
             let (_, damage, every, speed, reach) = stats(self.units[i].troop);
             let (cx, cz) = self.targets[ti].centre();
             let reach = reach + self.targets[ti].half();
             let u = &mut self.units[i];
-            let dist2 = d2(u.x, u.z, cx, cz);
-            if dist2 > reach * reach {
-                let dist = dist2.isqrt().max(1);
-                let step = speed.min(dist - reach).max(1);
-                u.x += (cx - u.x) * step / dist;
-                u.z += (cz - u.z) * step / dist;
-                u.cooldown = u.cooldown.saturating_sub(1);
-                continue;
+            let dist = d2(u.x, u.z, cx, cz).isqrt().max(1);
+            if dist > reach {
+                let step = speed.min(dist - reach);
+                let (mx, mz) = ((cx - u.x) * step / dist, (cz - u.z) * step / dist);
+                // Whole-number rounding can leave the last sliver as no move at
+                // all; then it is close enough to swing.
+                if mx != 0 || mz != 0 {
+                    u.x += mx;
+                    u.z += mz;
+                    u.cooldown = u.cooldown.saturating_sub(1);
+                    continue;
+                }
             }
             if u.cooldown > 0 {
                 u.cooldown -= 1;
@@ -395,5 +408,27 @@ impl Battle {
     }
 }
 
-/// Sanity: the number of troop kinds the battle knows matches the army.
-pub const _TROOPS_KNOWN: usize = TROOPS.len();
+/// A player's village as a camp to raid: every finished building where it
+/// stands. A fifth of what sits in storage (shared across its storages) and
+/// what waits in each mine or collector is up for grabs.
+pub fn plans_from_town(town: &Town) -> Vec<Plan> {
+    let gold_stores = town.buildings.iter().filter(|b| b.kind == Kind::GoldStorage && b.level > 0).count() as u32;
+    let elixir_stores = town.buildings.iter().filter(|b| b.kind == Kind::ElixirStorage && b.level > 0).count() as u32;
+    town.buildings
+        .iter()
+        .filter(|b| b.level > 0)
+        .map(|b| {
+            let (gold, elixir) = match b.kind {
+                Kind::GoldStorage => (town.gold / 5 / gold_stores.max(1), 0),
+                Kind::ElixirStorage => (0, town.elixir / 5 / elixir_stores.max(1)),
+                Kind::GoldMine => ((b.banked_milli / 1000) as u32 / 2, 0),
+                Kind::ElixirCollector => (0, (b.banked_milli / 1000) as u32 / 2),
+                _ => (0, 0),
+            };
+            Plan { kind: b.kind, level: b.level, x: b.x, z: b.z, gold, elixir }
+        })
+        .collect()
+}
+
+/// Sanity: the battle knows every troop kind the army has.
+const _: () = assert!(TROOPS.len() == 3);

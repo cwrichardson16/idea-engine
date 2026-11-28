@@ -2,6 +2,7 @@
 //! draws them, turns taps and HUD buttons into rule calls, and keeps village
 //! time (world time plus time spent away).
 
+pub mod battle;
 pub mod economy;
 
 use economy::{Kind, Pay, Res, Town, Troop, GRID, KINDS, TROOPS};
