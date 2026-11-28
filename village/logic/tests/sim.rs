@@ -1077,3 +1077,29 @@ fn the_restore_code_shows_once_made() {
     assert_eq!(hud_after(&sim).restore_code, "QRST6789");
     assert!(ask(&sim).starts_with("3\tstate"));
 }
+
+#[test]
+fn a_device_whose_village_moved_stops_saving_and_never_makes_a_copy() {
+    let mut sim = Sim::<Village>::new(Options::default()).unwrap();
+    net(&mut sim, "");
+    sim.post("cred old@players.invalid pw");
+    sim.post("load 1795850000000 ");
+    sim.run(100.0);
+    net(&mut sim, "1\tok\tTOKEN");
+    net(&mut sim, "2\tok\t3\t\t");
+    sim.post("devmode on");
+    sim.post("dev rich");
+    sim.run(6000.0);
+    assert!(ask(&sim).starts_with("3\tsave"));
+    // The server refuses the save (moved), and the old password no longer signs in.
+    net(&mut sim, "3\tauth");
+    assert!(ask(&sim).starts_with("4\tsignin"));
+    net(&mut sim, "4\tauth");
+    sim.run(30_000.0);
+    assert_eq!(ask(&sim), "", "no join, no upload");
+    assert!(sim.world().resource::<village_logic::cloud::Cloud>().status.contains("moved"));
+    // A code can still bring a village here.
+    sim.post("restore ABCD2345");
+    sim.run(100.0);
+    assert!(ask(&sim).starts_with("5\tclaim"));
+}

@@ -63,6 +63,9 @@ Deno.serve(async (req) => {
     if (!found) return json({ error: "no account has that code" }, 404);
     const { data: u } = await admin.auth.admin.getUserById(found);
     if (!u.user?.email) return json({ error: "no account has that code" }, 404);
+    // Saves signed in before this moment are refused (put_save checks moved_at).
+    const { error: e4 } = await admin.from("players").update({ moved_at: new Date().toISOString() }).eq("id", found);
+    if (e4) return json({ error: "could not restore" }, 500);
     const raw = crypto.getRandomValues(new Uint8Array(24));
     const password = btoa(String.fromCharCode(...raw));
     const { error: e3 } = await admin.auth.admin.updateUserById(found, { password });

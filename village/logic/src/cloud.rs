@@ -17,6 +17,9 @@ pub enum Step {
     SignIn,
     Fetch,
     Ready,
+    /// This device's account no longer signs in: its village was moved to
+    /// another device with a restore code. Play stays local; a code can be claimed.
+    Moved,
 }
 
 #[derive(Default, Resource)]
@@ -154,6 +157,7 @@ pub fn step(w: &mut World, net: &str) {
             let t = c.token.clone();
             c.send("state", &t, &[]);
         }
+        Step::Moved => {}
         Step::Ready => {
             let has_events = !c.applied.is_empty();
             if (c.dirty != c.sent || has_events) && !c.dirty.is_empty() && now >= c.last_put + SAVE_GAP_MS {
@@ -198,8 +202,14 @@ fn answer(w: &mut World, line: &str, now: u64) {
         "auth" => {
             let mut c = w.resource_mut::<Cloud>();
             c.token.clear();
-            // A device whose account is gone starts a new one.
-            c.step = if step == Step::SignIn { Step::Join } else { Step::SignIn };
+            // The account's sign-in no longer works: the village moved to
+            // another device. Never upload it into a new account (a copy).
+            if step == Step::SignIn {
+                c.step = Step::Moved;
+                c.status = "☁️ this village moved to another device".into();
+            } else {
+                c.step = Step::SignIn;
+            }
         }
         "ok" => match step {
             Step::Join => {
@@ -226,7 +236,7 @@ fn answer(w: &mut World, line: &str, now: u64) {
                 c.applied.retain(|e| !done.contains(e));
                 c.status = "☁️ saved".into();
             }
-            Step::Off => {}
+            Step::Off | Step::Moved => {}
         },
         "conflict" => {
             // Another device saved first: its save is the newest truth. Fetch
