@@ -851,3 +851,17 @@ fn a_save_without_study_still_loads_and_bad_study_is_refused() {
     assert!(Town::decode(&format!("{pre_study}#1,2,3")).is_none());
     assert!(Town::decode(&format!("{pre_study}#1,2,3,4,5,6,7,8,x")).is_none());
 }
+
+#[test]
+fn a_power_hour_bank_above_the_normal_cap_survives_save_and_reload() {
+    let mut t = town_with(1000, 1000);
+    let id = t.place(Kind::GoldMine, 0, 0, 0).unwrap();
+    t.settle(20_000);
+    let mark = t.get(id).unwrap().mark;
+    t.add_reviews(100, DAY, mark);
+    // A second power hour banks every mine at its doubled cap.
+    t.add_reviews(100, DAY, mark + 100_000);
+    assert_eq!(t.get(id).unwrap().banked_milli, 200_000);
+    let back = Town::decode(&t.encode()).expect("a power-hour bank must reload");
+    assert_eq!(back.get(id).unwrap().banked_milli, 200_000);
+}

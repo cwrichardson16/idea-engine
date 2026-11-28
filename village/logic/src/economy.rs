@@ -810,7 +810,7 @@ impl Town {
         };
         if *have < cost {
             return Err(match pay {
-                Pay::Gems => format!("Need {cost} gems"),
+                Pay::Gems => format!("Need {cost} Scrubs Tokens"),
                 Pay::Knowledge => format!("Need {cost} Knowledge"),
             });
         }
@@ -982,7 +982,7 @@ impl Town {
         });
         let banked_ok = bs.iter().all(|b| {
             let holds = b.kind.production(b.level).map_or(0, |(_, _, h)| h);
-            b.banked_milli <= holds * 1000
+            b.banked_milli <= holds * 2000
         });
         let (gc, ec) = self.caps();
         ids_ok
@@ -1064,6 +1064,7 @@ impl Town {
         let due = (after / POWER_REVIEWS).min(POWER_HOURS_MAX);
         if self.study.power_today < due {
             self.bank_all(now);
+            self.settle_training(now);
             let add = u64::from(due - self.study.power_today) * HOUR_MS;
             self.study.power_today = due;
             if now >= self.study.power_until {

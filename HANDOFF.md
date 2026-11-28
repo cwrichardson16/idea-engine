@@ -1,4 +1,6 @@
 session: 2450836a-499e-482d-919d-4a3f50256f74
-Mid-flight: SPEC-3 (approved, both reviewers SHIP). T0 done, T1 in code; `test web` running in background (log ~/Projects/idea-engine-testweb.log).
-Next: if test web green → start dev server, Chrome look at names + hidden dev (5 taps on Hospital badge) → skeptic on T1 diff → T2 study rules (SPEC-3 T2; KNOWLEDGE_SECONDS 20→60, 1 per 5 reviews, chest tiers 50/200/400/800 per 4am day, streak ≥50, power hour per 100 reviews up to 4h: 2x production+capacity+training).
-Conner: keep building all of SPEC-3; DON'T share the link with testers until his final go.
+Mid-flight: SPEC-3 build. T0 done; T1 done (test web ok); T2 done in code + fix for skeptic BLOCK (power-hour save wipe); skeptic round 2 pending on the fix commit.
+Next exact actions:
+1. If skeptic round 2 SHIP: start dev server (`bun exact.mjs web --port 8765` from village/, background), one Chrome look at T1+T2 (names, hidden dev, 5 taps on Hospital badge, study panel after 50 reviews → chest toast, power ⚡), screenshot paths into STATE.
+2. T3: create ONE free Supabase project (Conner approved; $0 only; check list_organizations/cost first, refuse anything paid), tables + RLS + put_save RPC per SPEC-3 T3, then data crate per NET-RECIPE.md, spike one round trip from web build.
+Conner: keep building all of SPEC-3; do NOT share the link with testers until his final go.

@@ -231,7 +231,7 @@ component Village
             column testId="army" position="absolute" bottom=90 right=24 width="20rem" gap=8 padding=14 border-radius=12 background-color="#202731f0"
               text `Staff · ${hud.housing_used} of ${hud.housing_cap} ${hud.housing_cap == 1 ? "bed" : "beds"} used` font-size=18
               for r in hud.army key=r.key
-                button press=send(`train ${r.key}`) testId=`train-${r.key}` disabled=(r.reason != "") aria-label=(r.reason == "" ? `Train ${r.name}, ${r.cost} elixir` : `${r.name}, ${r.reason}`) padding=10 border-radius=10 background-color=(r.reason == "" ? "#3e4f5c" : "#2a2f33") text-align="left" box-shadow="inset 0 -4px 0 #00000055, 0 2px 0 #00000088" border-width=2 border-style="solid" border-color="#00000066"
+                button press=send(`train ${r.key}`) testId=`train-${r.key}` disabled=(r.reason != "") aria-label=(r.reason == "" ? `Train ${r.name}, ${r.cost} coffee` : `${r.name}, ${r.reason}`) padding=10 border-radius=10 background-color=(r.reason == "" ? "#3e4f5c" : "#2a2f33") text-align="left" box-shadow="inset 0 -4px 0 #00000055, 0 2px 0 #00000088" border-width=2 border-style="solid" border-color="#00000066"
                   column gap=2
                     text `${r.name} ×${r.count}` font-size=15
                     text (r.reason == "" ? `${r.cost} ☕ · ${r.secs}s · ${r.housing} ${r.housing == 1 ? "bed" : "beds"}` : r.reason) font-size=12 color=(r.reason == "" ? "#f0a6ff" : "#ff8a80")
@@ -279,7 +279,7 @@ component Village
             column testId="shop" position="absolute" bottom=90 right=24 width=300 gap=8 padding=14 border-radius=12 background-color="#202731f0"
               text "Shop" font-size=18
               for r in hud.shop key=r.key
-                button press=buy(r.key) testId=`buy-${r.key}` disabled=(r.reason != "") aria-label=(r.reason == "" ? `${r.name}, ${r.cost} ${r.res}` : `${r.name}, ${r.reason}`) padding=10 border-radius=10 background-color=(r.reason == "" ? "#3e4f5c" : "#2a2f33") text-align="left" box-shadow="inset 0 -4px 0 #00000055, 0 2px 0 #00000088" border-width=2 border-style="solid" border-color="#00000066"
+                button press=buy(r.key) testId=`buy-${r.key}` disabled=(r.reason != "") aria-label=(r.reason == "" ? `${r.name}, ${r.cost} ${r.res == "gold" ? "grant money" : "coffee"}` : `${r.name}, ${r.reason}`) padding=10 border-radius=10 background-color=(r.reason == "" ? "#3e4f5c" : "#2a2f33") text-align="left" box-shadow="inset 0 -4px 0 #00000055, 0 2px 0 #00000088" border-width=2 border-style="solid" border-color="#00000066"
                   column gap=2
                     text `${r.name} (${r.owned}/${r.max})` font-size=15
                     text (r.reason == "" ? `${r.cost} ${r.res == "gold" ? "💵" : "☕"}${r.secs > 0 ? ` · ${r.secs}s` : ""}` : r.reason) font-size=12 color=(r.reason == "" ? (r.res == "gold" ? "#ffd54f" : "#f0a6ff") : "#ff8a80")
