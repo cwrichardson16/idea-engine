@@ -143,3 +143,6 @@ Purchases or the study pass, clans/wars/leaderboards, the study-only hero, the f
 - **Raid loss floors at 0:** the defender's loss stops at zero, and the attacker keeps the capped loot. That small duplication is accepted for the playtest.
 - **Anki function cap:** also caps each player at 1,500 per rolling 24 h on the server's own time, not just per sent `day`.
 - **Restore:** it signs the old anonymous account out. Its saves are refused once moved.
+- `saves` has `version int not null default 0`. RLS on `saves`: the owner can read but has no direct insert or update; writes go only through `put_save`. `raids.applied` and `events.applied` are likewise changed only by RPCs.
+
+VERDICT: both reviewers SHIP (technical after 3 rounds, product after 2). Spec approved under Conner's "go with what we and the reviewers agree".

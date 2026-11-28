@@ -93,3 +93,5 @@ Each step: tests + Chrome check + reviewer + commit/push on the feature branch. 
   Meaning: build all of SPEC-3 (incl. approved free Supabase project + private link for our own verification), apply reviewer fixes, but DO NOT share the link with testers / call it launched until Conner gives the final go.
 - Pressure test: 2 reviewers running (technical "will it work" + product "what it misses"). Apply confirmed fixes to SPEC-3, then build T1→T7.
 - Pointer registered (set_pointer.py). Old HANDOFF moved to HANDOFF-done.md.
+- 2026-11-28 00:50: SPEC-3 v2 pressure-tested: both reviewers VERDICT SHIP. Build order T0 depth+web-build spike → T1 reskin+dev gate → T2 study rules → T3 Supabase via Rust data crate (tennis pattern, put_save RPC) → T4 Anki add-on → T5 tutorial/phone → T6 private link + tester kit (NOT shared until Conner's final go) → T7 multiplayer.
+- NEXT ACTION: T0 — read economy.rs tables (KINDS, costs, timers, production, storage, max_count, MAX_LEVEL=3); extend to level 8 with Town Hall gating; time-to-max sim test; then web-build spike (stop dev server first: task b42dkl2xa).
